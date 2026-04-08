@@ -12,10 +12,12 @@ var (
 
 // Participant represents a user connected to a room.
 type Participant struct {
-	ID       string
-	Name     string
-	Lang     string
-	JoinedAt time.Time
+	ID           string
+	Name         string
+	Lang         string
+	JoinedAt     time.Time
+	Disconnected bool      // true when in grace period awaiting reconnect
+	DisconnectAt time.Time // when disconnect happened
 }
 
 // ChatMessage stores a single chat message in room history.
@@ -52,17 +54,27 @@ func NewRoom(id string) *Room {
 }
 
 // Add places a participant into the first available slot.
-func (r *Room) Add(p *Participant) (int, error) {
+// If a disconnected participant with the same name exists, it takes over that slot (reconnect).
+func (r *Room) Add(p *Participant) (int, bool, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	// Check for reconnect: same name in disconnected state
+	for i := range r.Participants {
+		if r.Participants[i] != nil && r.Participants[i].Disconnected && r.Participants[i].Name == p.Name {
+			r.Participants[i] = p
+			return i, true, nil // reconnected
+		}
+	}
+
+	// Normal join: find an empty slot
 	for i := range r.Participants {
 		if r.Participants[i] == nil {
 			r.Participants[i] = p
-			return i, nil
+			return i, false, nil
 		}
 	}
-	return -1, ErrRoomFull
+	return -1, false, ErrRoomFull
 }
 
 // Remove removes a participant by ID and returns true if removed.
@@ -77,6 +89,34 @@ func (r *Room) Remove(id string) bool {
 		}
 	}
 	return false
+}
+
+// MarkDisconnected marks a participant as disconnected (grace period) instead of removing.
+func (r *Room) MarkDisconnected(id string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	for i := range r.Participants {
+		if r.Participants[i] != nil && r.Participants[i].ID == id {
+			r.Participants[i].Disconnected = true
+			r.Participants[i].DisconnectAt = time.Now()
+			return true
+		}
+	}
+	return false
+}
+
+// CleanupDisconnected removes participants that have been disconnected longer than the grace period.
+func (r *Room) CleanupDisconnected(grace time.Duration) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	now := time.Now()
+	for i := range r.Participants {
+		if r.Participants[i] != nil && r.Participants[i].Disconnected && now.Sub(r.Participants[i].DisconnectAt) > grace {
+			r.Participants[i] = nil
+		}
+	}
 }
 
 // Peer returns the other participant in the room (not matching the given ID).

@@ -14,6 +14,34 @@ interface JoinInfo {
   lang: string;
 }
 
+const SESSION_KEY = 'qhat_session';
+
+interface SavedSession {
+  roomId: string;
+  name: string;
+  lang: string;
+}
+
+function saveSession(s: SavedSession) {
+  sessionStorage.setItem(SESSION_KEY, JSON.stringify(s));
+}
+
+function loadSession(roomId: string): SavedSession | null {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const s: SavedSession = JSON.parse(raw);
+    if (s.roomId === roomId) return s;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function clearSession() {
+  sessionStorage.removeItem(SESSION_KEY);
+}
+
 interface UseRoomParams {
   roomId: string;
   send: (msg: InboundMessage) => void;
@@ -22,12 +50,17 @@ interface UseRoomParams {
 }
 
 export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomParams) {
-  const [phase, setPhase] = useState<RoomPhase>('lobby');
+  const savedSession = loadSession(roomId);
+
+  // If we have a saved session for this room, skip lobby and go straight to rejoin
+  const [phase, setPhase] = useState<RoomPhase>(savedSession ? 'lobby' : 'lobby');
   const [peer, setPeer] = useState<PeerInfo | null>(null);
-  const [myName, setMyName] = useState('');
-  const [myLang, setMyLang] = useState(() => sessionStorage.getItem('userLang') || 'EN');
+  const [myName, setMyName] = useState(savedSession?.name || '');
+  const [myLang, setMyLang] = useState(savedSession?.lang || sessionStorage.getItem('userLang') || 'EN');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [joinPending, setJoinPending] = useState<JoinInfo | null>(null);
+  const [joinPending, setJoinPending] = useState<JoinInfo | null>(
+    savedSession ? { name: savedSession.name, lang: savedSession.lang } : null
+  );
   const isCreator = useRef(false);
   const joinSent = useRef(false);
 
@@ -38,6 +71,7 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
       setMyName(name);
       setMyLang(lang);
       sessionStorage.setItem('userLang', lang);
+      saveSession({ roomId, name, lang });
       send({ type: 'join', roomId, name, lang });
       setPhase('waiting');
       setJoinPending(null);
@@ -46,6 +80,7 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
   );
 
   const leaveRoom = useCallback(() => {
+    clearSession();
     setPhase('ended');
     wsClient.disconnect();
   }, []);
@@ -63,10 +98,13 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
     });
 
     const unsubPeerLeft = wsClient.on('peer_left', () => {
-      setPhase('ended');
+      // Don't go to ended — peer may reconnect. Stay in waiting.
+      setPeer(null);
+      setPhase('waiting');
     });
 
     const unsubRoomFull = wsClient.on('room_full', () => {
+      clearSession();
       setErrorMessage('This room is full.');
       setPhase('error');
     });
@@ -91,7 +129,6 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
   }, [phase, peer]);
 
   // Transition connecting → connected based on WebRTC state
-  // Also allow 'connected' phase even if WebRTC doesn't fully connect (text-only mode)
   useEffect(() => {
     if (phase === 'connecting' && connectionState === 'connected') {
       setPhase('connected');

@@ -16,25 +16,25 @@ func TestRoomAddAndRemove(t *testing.T) {
 	p2 := &Participant{ID: "b", Name: "Bob", Lang: "ES", JoinedAt: time.Now()}
 	p3 := &Participant{ID: "c", Name: "Charlie", Lang: "FR", JoinedAt: time.Now()}
 
-	idx, err := r.Add(p1)
-	if err != nil || idx != 0 {
-		t.Fatalf("Add p1: idx=%d, err=%v", idx, err)
+	idx, reconnected, err := r.Add(p1)
+	if err != nil || idx != 0 || reconnected {
+		t.Fatalf("Add p1: idx=%d, reconnected=%v, err=%v", idx, reconnected, err)
 	}
 
 	if r.IsFull() {
 		t.Error("room should not be full with 1 participant")
 	}
 
-	idx, err = r.Add(p2)
-	if err != nil || idx != 1 {
-		t.Fatalf("Add p2: idx=%d, err=%v", idx, err)
+	idx, reconnected, err = r.Add(p2)
+	if err != nil || idx != 1 || reconnected {
+		t.Fatalf("Add p2: idx=%d, reconnected=%v, err=%v", idx, reconnected, err)
 	}
 
 	if !r.IsFull() {
 		t.Error("room should be full with 2 participants")
 	}
 
-	_, err = r.Add(p3)
+	_, _, err = r.Add(p3)
 	if err != ErrRoomFull {
 		t.Errorf("expected ErrRoomFull, got %v", err)
 	}
@@ -52,6 +52,40 @@ func TestRoomAddAndRemove(t *testing.T) {
 	r.Remove("b")
 	if !r.IsEmpty() {
 		t.Error("room should be empty after removing all")
+	}
+}
+
+func TestRoomReconnect(t *testing.T) {
+	r := NewRoom("reconnect-test")
+
+	p1 := &Participant{ID: "a", Name: "Alice", Lang: "EN", JoinedAt: time.Now()}
+	p2 := &Participant{ID: "b", Name: "Bob", Lang: "ES", JoinedAt: time.Now()}
+	r.Add(p1)
+	r.Add(p2)
+
+	// Alice disconnects
+	r.MarkDisconnected("a")
+	if r.IsEmpty() {
+		t.Error("room should not be empty, Alice is in grace period")
+	}
+
+	// Alice reconnects with new client ID
+	p1New := &Participant{ID: "a2", Name: "Alice", Lang: "EN", JoinedAt: time.Now()}
+	idx, reconnected, err := r.Add(p1New)
+	if err != nil {
+		t.Fatalf("reconnect failed: %v", err)
+	}
+	if !reconnected {
+		t.Error("expected reconnected=true")
+	}
+	if idx != 0 {
+		t.Errorf("expected slot 0, got %d", idx)
+	}
+
+	// New participant should have new ID
+	p := r.Participant("a2")
+	if p == nil || p.Name != "Alice" {
+		t.Error("expected Alice with new ID")
 	}
 }
 

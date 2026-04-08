@@ -71,7 +71,10 @@ func (h *Hub) Dispatch(client *ws.Client, raw []byte) {
 	}
 }
 
+const reconnectGrace = 20 * time.Second
+
 // HandleDisconnect is called when a client's WebSocket connection closes.
+// Instead of removing immediately, marks participant as disconnected with a grace period.
 func (h *Hub) HandleDisconnect(client *ws.Client) {
 	h.mu.Lock()
 	delete(h.clients, client.ID)
@@ -88,19 +91,25 @@ func (h *Hub) HandleDisconnect(client *ws.Client) {
 		return
 	}
 
-	r.Remove(client.ID)
-	log.Printf("client %s left room %s", client.ID, roomID)
+	// Mark as disconnected instead of removing
+	r.MarkDisconnected(client.ID)
+	log.Printf("client %s disconnected from room %s (grace period %s)", client.ID, roomID, reconnectGrace)
 
-	// Notify the remaining peer
+	// Notify the remaining peer that connection is temporarily lost
 	peerClient := h.findPeerClient(r, client.ID)
 	if peerClient != nil {
 		peerClient.Send(&ws.OutboundMessage{Type: ws.TypePeerLeft})
 	}
 
-	if r.IsEmpty() {
-		h.rooms.Delete(roomID)
-		log.Printf("room %s destroyed (empty)", roomID)
-	}
+	// Schedule cleanup after grace period
+	go func() {
+		time.Sleep(reconnectGrace)
+		r.CleanupDisconnected(reconnectGrace)
+		if r.IsEmpty() {
+			h.rooms.Delete(roomID)
+			log.Printf("room %s destroyed (grace expired)", roomID)
+		}
+	}()
 }
 
 func (h *Hub) handleJoin(client *ws.Client, msg *ws.InboundMessage) {
@@ -118,7 +127,8 @@ func (h *Hub) handleJoin(client *ws.Client, msg *ws.InboundMessage) {
 		JoinedAt: time.Now(),
 	}
 
-	if _, err := r.Add(participant); err != nil {
+	_, reconnected, err := r.Add(participant)
+	if err != nil {
 		client.Send(&ws.OutboundMessage{Type: ws.TypeRoomFull})
 		client.Close()
 		return
@@ -136,18 +146,22 @@ func (h *Hub) handleJoin(client *ws.Client, msg *ws.InboundMessage) {
 		ICEServers: iceServers,
 	})
 
-	log.Printf("client %s (%s) joined room %s", client.ID, msg.Name, msg.RoomID)
+	if reconnected {
+		log.Printf("client %s (%s) reconnected to room %s", client.ID, msg.Name, msg.RoomID)
+	} else {
+		log.Printf("client %s (%s) joined room %s", client.ID, msg.Name, msg.RoomID)
+	}
 
-	// If there's a peer already in the room, notify both sides
+	// If there's a peer already in the room (connected, not disconnected), notify both sides
 	peer := r.Peer(client.ID)
-	if peer != nil {
-		// Notify the new joiner about the existing peer
+	if peer != nil && !peer.Disconnected {
+		// Notify the new/reconnected joiner about the existing peer
 		client.Send(&ws.OutboundMessage{
 			Type: ws.TypePeerJoined,
 			Name: peer.Name,
 			Lang: peer.Lang,
 		})
-		// Notify the existing peer about the new joiner
+		// Notify the existing peer about the new/reconnected joiner
 		peerClient := h.findPeerClient(r, client.ID)
 		if peerClient != nil {
 			peerClient.Send(&ws.OutboundMessage{
