@@ -86,7 +86,7 @@ jobs:
           DEPLOY_DIR="/opt/qhat"
 
           # Stop service (sudoers NOPASSWD)
-          sudo /bin/systemctl stop qhat || true
+          sudo /usr/bin/systemctl stop qhat || true
 
           # Extract to staging
           mkdir -p /tmp/qhat-staging
@@ -100,24 +100,24 @@ jobs:
           cp -r /tmp/qhat-staging/frontend/dist $DEPLOY_DIR/frontend/
 
           # Remove default nginx site to avoid server_name conflict
-          sudo /bin/rm -f /etc/nginx/sites-enabled/default
+          sudo /usr/bin/rm -f /etc/nginx/sites-enabled/default
 
           # Update nginx + systemd configs (sudoers NOPASSWD)
-          sudo /bin/cp /tmp/qhat-staging/nginx.conf /etc/nginx/sites-available/qhat
-          sudo /bin/ln -sf /etc/nginx/sites-available/qhat /etc/nginx/sites-enabled/qhat
-          sudo /usr/sbin/nginx -t && sudo /bin/systemctl reload nginx
+          sudo /usr/bin/cp /tmp/qhat-staging/nginx.conf /etc/nginx/sites-available/qhat
+          sudo /usr/bin/ln -sf /etc/nginx/sites-available/qhat /etc/nginx/sites-enabled/qhat
+          sudo /usr/sbin/nginx -t && sudo /usr/bin/systemctl reload nginx
 
-          sudo /bin/cp /tmp/qhat-staging/qhat.service /etc/systemd/system/qhat.service
-          sudo /bin/systemctl daemon-reload
-          sudo /bin/systemctl start qhat
-          sudo /bin/systemctl enable qhat
+          sudo /usr/bin/cp /tmp/qhat-staging/qhat.service /etc/systemd/system/qhat.service
+          sudo /usr/bin/systemctl daemon-reload
+          sudo /usr/bin/systemctl start qhat
+          sudo /usr/bin/systemctl enable qhat
 
           # Cleanup
           rm -rf /tmp/qhat-deploy.tar.gz /tmp/qhat-staging
 
           echo "Deploy complete"
           sleep 2
-          sudo /bin/systemctl is-active qhat
+          sudo /usr/bin/systemctl is-active qhat
           DEPLOY
 
       - name: Cleanup SSH key
