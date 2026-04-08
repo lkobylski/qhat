@@ -13,13 +13,18 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>('new');
   const iceServersRef = useRef<RTCIceServer[]>([]);
+  const iceRestartCount = useRef(0);
 
   const createPC = useCallback(() => {
     if (pcRef.current) {
       pcRef.current.close();
     }
+    pendingCandidates.current = [];
 
-    const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
+    const pc = new RTCPeerConnection({
+      iceServers: iceServersRef.current,
+      iceCandidatePoolSize: 2,
+    });
     pcRef.current = pc;
 
     pc.onicecandidate = (event) => {
@@ -33,7 +38,41 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
     };
 
     pc.onconnectionstatechange = () => {
-      setConnectionState(pc.connectionState);
+      const state = pc.connectionState;
+      setConnectionState(state);
+
+      // Auto ICE restart on failure (max 3 attempts)
+      if (state === 'failed' && iceRestartCount.current < 3) {
+        iceRestartCount.current++;
+        console.log(`ICE restart attempt ${iceRestartCount.current}`);
+        pc.restartIce();
+        pc.createOffer({ iceRestart: true }).then((offer) => {
+          pc.setLocalDescription(offer);
+          send({ type: 'offer', sdp: offer.sdp });
+        });
+      }
+
+      // Reset restart count on success
+      if (state === 'connected') {
+        iceRestartCount.current = 0;
+      }
+    };
+
+    // Auto ICE restart on disconnected after 5s
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'disconnected') {
+        setTimeout(() => {
+          if (pc.iceConnectionState === 'disconnected' && iceRestartCount.current < 3) {
+            iceRestartCount.current++;
+            console.log(`ICE reconnect attempt ${iceRestartCount.current}`);
+            pc.restartIce();
+            pc.createOffer({ iceRestart: true }).then((offer) => {
+              pc.setLocalDescription(offer);
+              send({ type: 'offer', sdp: offer.sdp });
+            });
+          }
+        }, 3000);
+      }
     };
 
     // Add local tracks if available
@@ -47,6 +86,7 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
   }, [send, localStream]);
 
   const startOffer = useCallback(async () => {
+    iceRestartCount.current = 0;
     const pc = createPC();
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
@@ -55,10 +95,29 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
 
   const handleOffer = useCallback(
     async (sdp: string) => {
+      iceRestartCount.current = 0;
+      // If we already have a PC with remote description, this might be an ICE restart
+      const existingPC = pcRef.current;
+      if (existingPC && existingPC.signalingState !== 'closed') {
+        try {
+          await existingPC.setRemoteDescription({ type: 'offer', sdp });
+          // Drain queued candidates
+          for (const candidate of pendingCandidates.current) {
+            await existingPC.addIceCandidate(candidate);
+          }
+          pendingCandidates.current = [];
+          const answer = await existingPC.createAnswer();
+          await existingPC.setLocalDescription(answer);
+          send({ type: 'answer', sdp: answer.sdp });
+          return;
+        } catch {
+          // Fall through to create new PC
+        }
+      }
+
       const pc = createPC();
       await pc.setRemoteDescription({ type: 'offer', sdp });
 
-      // Drain queued ICE candidates
       for (const candidate of pendingCandidates.current) {
         await pc.addIceCandidate(candidate);
       }
@@ -76,7 +135,6 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
     if (!pc) return;
     await pc.setRemoteDescription({ type: 'answer', sdp });
 
-    // Drain queued ICE candidates
     for (const candidate of pendingCandidates.current) {
       await pc.addIceCandidate(candidate);
     }
@@ -86,11 +144,14 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
   const handleICECandidate = useCallback(async (candidate: RTCIceCandidateInit) => {
     const pc = pcRef.current;
     if (!pc || !pc.remoteDescription) {
-      // Queue if remote description not set yet
       pendingCandidates.current.push(candidate);
       return;
     }
-    await pc.addIceCandidate(candidate);
+    try {
+      await pc.addIceCandidate(candidate);
+    } catch (e) {
+      console.warn('Failed to add ICE candidate:', e);
+    }
   }, []);
 
   // Subscribe to signaling messages
@@ -121,7 +182,6 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
     };
   }, [handleOffer, handleAnswer, handleICECandidate]);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       pcRef.current?.close();

@@ -1,5 +1,5 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useMedia } from '../hooks/useMedia';
 import { useWebRTC } from '../hooks/useWebRTC';
@@ -37,6 +37,18 @@ export function RoomPage() {
     [media, connect, room]
   );
 
+  // Auto-rejoin on refresh if we have a saved session
+  const autoRejoinTriggered = useRef(false);
+  useEffect(() => {
+    if (room.joinPending && room.phase === 'lobby' && !autoRejoinTriggered.current) {
+      autoRejoinTriggered.current = true;
+      media.requestPermissions().then(() => {
+        connect();
+      });
+    }
+  }, [room.joinPending, room.phase, media, connect]);
+
+  // Send join message once WS is connected and join is pending
   useEffect(() => {
     if (connected && room.joinPending) {
       room.joinRoom(room.joinPending.name, room.joinPending.lang);
@@ -70,15 +82,22 @@ export function RoomPage() {
           </div>
         )}
 
-        {/* Lobby */}
+        {/* Lobby or reconnecting */}
         {room.phase === 'lobby' && (
           <div className="flex flex-1 items-center justify-center px-4">
-            <div className="space-y-4">
-              <h2 className="text-center text-xl font-semibold text-white">
-                Join the conversation
-              </h2>
-              <LobbyForm onJoin={handleJoin} />
-            </div>
+            {room.joinPending ? (
+              <div className="text-center text-white">
+                <div className="mb-2 text-lg font-medium animate-pulse">Reconnecting...</div>
+                <div className="text-sm text-white/60">Rejoining as {room.joinPending.name}</div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <h2 className="text-center text-xl font-semibold text-white">
+                  Join the conversation
+                </h2>
+                <LobbyForm onJoin={handleJoin} />
+              </div>
+            )}
           </div>
         )}
 
