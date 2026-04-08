@@ -32,7 +32,7 @@ export function ChatInput({ onSend }: ChatInputProps) {
           onKeyDown={handleKeyDown}
           placeholder="Message text"
           maxLength={1000}
-          className="flex-1 rounded-full border border-slate-600 bg-slate-800 px-4 py-2 text-sm text-white placeholder-slate-400 focus:border-slate-500 focus:outline-none"
+          className="flex-1 rounded-full border border-slate-600 bg-slate-800 px-4 py-2 text-base text-white placeholder-slate-400 focus:border-slate-500 focus:outline-none"
         />
         <button
           type="submit"

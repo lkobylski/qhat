@@ -32,7 +32,7 @@ export function LobbyForm({ onJoin, isJoining }: LobbyFormProps) {
           maxLength={30}
           required
           autoFocus
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
         />
       </div>
       <div>
