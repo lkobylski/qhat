@@ -1,32 +1,31 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { API_URL } from '../lib/constants';
 
 export function LandingPage() {
   const navigate = useNavigate();
   const [code, setCode] = useState('');
   const [joinError, setJoinError] = useState('');
 
+  const generateCode = () => {
+    const chars = 'abcdefghjkmnpqrstuvwxyz23456789'; // no ambiguous chars (0/o, 1/l, i)
+    let result = '';
+    const arr = new Uint8Array(6);
+    crypto.getRandomValues(arr);
+    for (const byte of arr) {
+      result += chars[byte % chars.length];
+    }
+    return result;
+  };
+
   const handleCreate = () => {
-    const roomId = crypto.randomUUID();
-    navigate(`/room/${roomId}`);
+    const code = generateCode();
+    navigate(`/c/${code}`);
   };
 
   const handleJoinByCode = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!code.trim()) return;
-
-    try {
-      const res = await fetch(`${API_URL}/api/room/code/${code.trim()}`);
-      if (!res.ok) {
-        setJoinError('Room not found. Check the code and try again.');
-        return;
-      }
-      const data = await res.json();
-      navigate(`/room/${data.roomId}`);
-    } catch {
-      setJoinError('Could not connect to server.');
-    }
+    navigate(`/c/${code.trim().toLowerCase()}`);
   };
 
   return (

@@ -18,7 +18,8 @@ import { LanguageChanger } from '../components/room/LanguageChanger';
 import { ConnectionQuality } from '../components/room/ConnectionQuality';
 
 export function RoomPage() {
-  const { id: roomId } = useParams<{ id: string }>();
+  const params = useParams<{ id?: string; code?: string }>();
+  const roomId = params.code || params.id || '';
   const navigate = useNavigate();
 
   const { connected, connect, send } = useWebSocket();
@@ -128,7 +129,7 @@ export function RoomPage() {
                     <ConnectionQuality quality={webrtc.quality} rtt={webrtc.rtt} />
                   </div>
                   <div>remote: {webrtc.remoteStream ? `${webrtc.remoteStream.getTracks().length} tracks` : 'none'} | local: {media.localStream ? 'ok' : 'none'}</div>
-                  <div>ws: {connected ? 'ok' : 'off'} | phase: {room.phase} | peer: {room.peer?.name || 'none'}</div>
+                  <div>ws: {connected ? 'ok' : 'off'} | phase: {room.phase} | peer: {room.peer?.name || 'none'} | q: {media.quality}</div>
                 </div>
               </div>
 
@@ -169,6 +170,8 @@ export function RoomPage() {
               onLeave={room.leaveRoom}
               hasMedia={!!media.localStream}
               roomId={roomId}
+              videoQuality={media.quality}
+              onQualityChange={media.changeQuality}
             />
 
             <ChatInput onSend={chat.sendMessage} onTyping={chat.sendTyping} />

@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { QualitySelector } from './QualitySelector';
+import type { VideoQuality } from '../../hooks/useMedia';
 
 interface MediaControlsProps {
   videoEnabled: boolean;
@@ -8,6 +10,8 @@ interface MediaControlsProps {
   onLeave: () => void;
   hasMedia: boolean;
   roomId: string;
+  videoQuality: VideoQuality;
+  onQualityChange: (q: VideoQuality) => void;
 }
 
 export function MediaControls({
@@ -18,21 +22,20 @@ export function MediaControls({
   onLeave,
   hasMedia,
   roomId,
+  videoQuality,
+  onQualityChange,
 }: MediaControlsProps) {
   const [shared, setShared] = useState(false);
 
   const handleShare = async () => {
-    const url = `${window.location.origin}/room/${roomId}`;
-    const code = roomId.slice(0, 6);
+    const url = `${window.location.origin}/c/${roomId}`;
+    const code = roomId;
 
-    // Try native share on mobile, fallback to clipboard
     if (navigator.share) {
       try {
         await navigator.share({ title: 'qhat', text: `Join my video chat! Code: ${code}`, url });
         return;
-      } catch {
-        // User cancelled or share failed — fall through to clipboard
-      }
+      } catch { /* cancelled */ }
     }
 
     await navigator.clipboard.writeText(url);
@@ -41,10 +44,10 @@ export function MediaControls({
   };
 
   return (
-    <div className="flex shrink-0 items-center justify-center gap-3 bg-slate-900 px-4 py-2">
+    <div className="flex shrink-0 items-center justify-center gap-2 bg-slate-900 px-4 py-2">
       <button
         onClick={handleShare}
-        className="rounded-full bg-slate-700 px-4 py-2 text-xs font-medium text-white hover:bg-slate-600 transition-colors"
+        className="rounded-full bg-slate-700 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-slate-600 transition-colors"
       >
         {shared ? 'Copied!' : 'Share'}
       </button>
@@ -52,29 +55,30 @@ export function MediaControls({
         <>
           <button
             onClick={onToggleAudio}
-            className={`rounded-full px-4 py-2 text-xs font-medium transition-colors ${
+            className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
               audioEnabled
                 ? 'bg-slate-700 text-white hover:bg-slate-600'
                 : 'bg-red-600 text-white hover:bg-red-500'
             }`}
           >
-            {audioEnabled ? 'Mic On' : 'Mic Off'}
+            {audioEnabled ? 'Mic' : 'Mic Off'}
           </button>
           <button
             onClick={onToggleVideo}
-            className={`rounded-full px-4 py-2 text-xs font-medium transition-colors ${
+            className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
               videoEnabled
                 ? 'bg-slate-700 text-white hover:bg-slate-600'
                 : 'bg-red-600 text-white hover:bg-red-500'
             }`}
           >
-            {videoEnabled ? 'Cam On' : 'Cam Off'}
+            {videoEnabled ? 'Cam' : 'Cam Off'}
           </button>
+          <QualitySelector quality={videoQuality} onChange={onQualityChange} />
         </>
       )}
       <button
         onClick={onLeave}
-        className="rounded-full bg-red-600 px-5 py-2 text-xs font-medium text-white hover:bg-red-500 transition-colors"
+        className="rounded-full bg-red-600 px-4 py-1.5 text-[11px] font-medium text-white hover:bg-red-500 transition-colors"
       >
         Leave
       </button>

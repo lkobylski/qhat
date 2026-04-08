@@ -5,8 +5,8 @@ interface WaitingScreenProps {
 }
 
 export function WaitingScreen({ roomId }: WaitingScreenProps) {
-  const roomCode = roomId.slice(0, 6);
-  const roomUrl = `${window.location.origin}/room/${roomId}`;
+  const roomCode = roomId;
+  const roomUrl = `${window.location.origin}/c/${roomId}`;
   const [copied, setCopied] = useState(false);
 
   const handleShare = async () => {

@@ -115,6 +115,9 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
       });
     }
 
+    // Prefer VP9 codec for better quality at lower bitrates
+    preferCodec(pc, 'video', 'video/VP9');
+
     return pc;
   }, [send, localStream]);
 
@@ -215,6 +218,19 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
     };
   }, [handleOffer, handleAnswer, handleICECandidate]);
 
+  // Replace sender track when localStream changes (quality switch)
+  useEffect(() => {
+    const pc = pcRef.current;
+    if (!pc || !localStream) return;
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (!videoTrack) return;
+
+    const sender = pc.getSenders().find((s) => s.track?.kind === 'video');
+    if (sender && sender.track !== videoTrack) {
+      sender.replaceTrack(videoTrack);
+    }
+  }, [localStream]);
+
   useEffect(() => {
     return () => {
       pcRef.current?.close();
@@ -230,4 +246,21 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
     rtt,
     startOffer,
   };
+}
+
+// Prefer a specific codec by reordering transceiver codecs
+function preferCodec(pc: RTCPeerConnection, kind: string, mimeType: string) {
+  const transceivers = pc.getTransceivers();
+  for (const transceiver of transceivers) {
+    if (transceiver.sender.track?.kind !== kind) continue;
+    // setCodecPreferences is not available in all browsers
+    if (!transceiver.setCodecPreferences) continue;
+
+    const codecs = RTCRtpReceiver.getCapabilities(kind)?.codecs || [];
+    const preferred = codecs.filter((c) => c.mimeType === mimeType);
+    const rest = codecs.filter((c) => c.mimeType !== mimeType);
+    if (preferred.length > 0) {
+      transceiver.setCodecPreferences([...preferred, ...rest]);
+    }
+  }
 }

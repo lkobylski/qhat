@@ -8,6 +8,7 @@ function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/" element={<LandingPage />} />
+        <Route path="/c/:code" element={<RoomPage />} />
         <Route path="/room/:id" element={<RoomPage />} />
         <Route path="/ended" element={<EndedPage />} />
       </Routes>
