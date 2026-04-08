@@ -59,8 +59,10 @@ func (h *Hub) Dispatch(client *ws.Client, raw []byte) {
 	case ws.TypeJoin:
 		h.handleJoin(client, &msg)
 	case ws.TypeOffer:
+		log.Printf("[signal] offer from %s (room %s)", client.ID, client.RoomID)
 		h.relayToPeer(client, raw)
 	case ws.TypeAnswer:
+		log.Printf("[signal] answer from %s (room %s)", client.ID, client.RoomID)
 		h.relayToPeer(client, raw)
 	case ws.TypeICE:
 		h.relayToPeer(client, raw)
@@ -225,11 +227,18 @@ func (h *Hub) handleChat(client *ws.Client, msg *ws.InboundMessage) {
 func (h *Hub) relayToPeer(client *ws.Client, raw []byte) {
 	r := h.rooms.Get(client.RoomID)
 	if r == nil {
+		log.Printf("[relay] no room found for client %s (roomID=%s)", client.ID, client.RoomID)
 		return
 	}
 
 	peerClient := h.findPeerClient(r, client.ID)
 	if peerClient == nil {
+		peer := r.Peer(client.ID)
+		if peer == nil {
+			log.Printf("[relay] no peer in room %s for client %s", client.RoomID, client.ID)
+		} else {
+			log.Printf("[relay] peer %s found in room but no ws.Client (disconnected=%v)", peer.ID, peer.Disconnected)
+		}
 		return
 	}
 
