@@ -253,10 +253,15 @@ func (h *Hub) buildICEServers() []ws.ICEServer {
 	}
 	if h.config.TURNHost != "" {
 		servers = append(servers, ws.ICEServer{
-			URLs:       []string{fmt.Sprintf("turn:%s:%d", h.config.TURNHost, h.config.TURNPort)},
+			URLs: []string{
+				fmt.Sprintf("turn:%s:%d?transport=udp", h.config.TURNHost, h.config.TURNPort),
+				fmt.Sprintf("turn:%s:%d?transport=tcp", h.config.TURNHost, h.config.TURNPort),
+				fmt.Sprintf("turns:%s:5349?transport=tcp", h.config.TURNHost),
+			},
 			Username:   h.config.TURNUsername,
 			Credential: h.config.TURNPassword,
 		})
 	}
+	log.Printf("ICE servers config: TURN_HOST=%s, TURN_PORT=%d, entries=%d", h.config.TURNHost, h.config.TURNPort, len(servers))
 	return servers
 }
