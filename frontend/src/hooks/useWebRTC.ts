@@ -21,6 +21,7 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
     }
     pendingCandidates.current = [];
 
+    console.log('[WebRTC] Creating PeerConnection with ICE servers:', JSON.stringify(iceServersRef.current));
     const pc = new RTCPeerConnection({
       iceServers: iceServersRef.current,
       iceCandidatePoolSize: 2,
@@ -29,6 +30,7 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        console.log('[WebRTC] ICE candidate:', event.candidate.type, event.candidate.protocol, event.candidate.address);
         send({ type: 'ice', candidate: event.candidate.toJSON() });
       }
     };
@@ -39,6 +41,7 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
 
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState;
+      console.log('[WebRTC] Connection state:', state);
       setConnectionState(state);
 
       // Auto ICE restart on failure (max 3 attempts)
