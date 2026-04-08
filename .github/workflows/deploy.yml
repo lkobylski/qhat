@@ -99,6 +99,9 @@ jobs:
           rm -rf $DEPLOY_DIR/frontend/dist
           cp -r /tmp/qhat-staging/frontend/dist $DEPLOY_DIR/frontend/
 
+          # Remove default nginx site to avoid server_name conflict
+          sudo /bin/rm -f /etc/nginx/sites-enabled/default
+
           # Update nginx + systemd configs (sudoers NOPASSWD)
           sudo /bin/cp /tmp/qhat-staging/nginx.conf /etc/nginx/sites-available/qhat
           sudo /bin/ln -sf /etc/nginx/sites-available/qhat /etc/nginx/sites-enabled/qhat

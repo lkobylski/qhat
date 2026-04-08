@@ -4,10 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
-User=qhat
+User=appuser
+Group=appuser
 WorkingDirectory=/opt/qhat
-ExecStart=/opt/qhat/server/qhat-server
-EnvironmentFile=/opt/qhat/.env
+ExecStart=/opt/qhat/server/bin/qhat-server
+EnvironmentFile=-/opt/qhat/.env
 Restart=on-failure
 RestartSec=5
 
