@@ -85,30 +85,36 @@ jobs:
           set -e
           DEPLOY_DIR="/opt/qhat"
 
-          sudo systemctl stop qhat || true
+          # Stop service (sudoers NOPASSWD)
+          sudo /bin/systemctl stop qhat || true
 
+          # Extract to staging
           mkdir -p /tmp/qhat-staging
           tar -xzf /tmp/qhat-deploy.tar.gz -C /tmp/qhat-staging
 
-          sudo mkdir -p $DEPLOY_DIR/server/bin $DEPLOY_DIR/frontend
-          sudo cp /tmp/qhat-staging/server/bin/qhat-server $DEPLOY_DIR/server/bin/
-          sudo rm -rf $DEPLOY_DIR/frontend/dist
-          sudo cp -r /tmp/qhat-staging/frontend/dist $DEPLOY_DIR/frontend/
+          # Copy files (appuser owns /opt/qhat — no sudo needed)
+          mkdir -p $DEPLOY_DIR/server/bin $DEPLOY_DIR/frontend
+          cp /tmp/qhat-staging/server/bin/qhat-server $DEPLOY_DIR/server/bin/
+          chmod +x $DEPLOY_DIR/server/bin/qhat-server
+          rm -rf $DEPLOY_DIR/frontend/dist
+          cp -r /tmp/qhat-staging/frontend/dist $DEPLOY_DIR/frontend/
 
-          sudo cp /tmp/qhat-staging/nginx.conf /etc/nginx/sites-available/qhat
-          sudo ln -sf /etc/nginx/sites-available/qhat /etc/nginx/sites-enabled/qhat
-          sudo nginx -t && sudo systemctl reload nginx
+          # Update nginx + systemd configs (sudoers NOPASSWD)
+          sudo /bin/cp /tmp/qhat-staging/nginx.conf /etc/nginx/sites-available/qhat
+          sudo /bin/ln -sf /etc/nginx/sites-available/qhat /etc/nginx/sites-enabled/qhat
+          sudo /usr/sbin/nginx -t && sudo /bin/systemctl reload nginx
 
-          sudo cp /tmp/qhat-staging/qhat.service /etc/systemd/system/qhat.service
-          sudo systemctl daemon-reload
-          sudo systemctl start qhat
-          sudo systemctl enable qhat
+          sudo /bin/cp /tmp/qhat-staging/qhat.service /etc/systemd/system/qhat.service
+          sudo /bin/systemctl daemon-reload
+          sudo /bin/systemctl start qhat
+          sudo /bin/systemctl enable qhat
 
+          # Cleanup
           rm -rf /tmp/qhat-deploy.tar.gz /tmp/qhat-staging
 
           echo "Deploy complete"
           sleep 2
-          sudo systemctl is-active qhat
+          sudo /bin/systemctl is-active qhat
           DEPLOY
 
       - name: Cleanup SSH key
