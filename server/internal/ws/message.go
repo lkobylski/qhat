@@ -14,6 +14,9 @@ const (
 	TypeRoomFull   = "room_full"
 	TypeError      = "error"
 	TypeICEServers = "ice_servers"
+	TypeTyping     = "typing"
+	TypeLangChange = "lang_change"
+	TypeReaction   = "reaction"
 )
 
 // InboundMessage represents a message received from a client.

@@ -3,6 +3,7 @@ package ws
 import (
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -20,11 +21,19 @@ func NewHandler(msgHandler MessageHandler, allowedOrigins []string) http.Handler
 		ReadBufferSize:  1024,
 		WriteBufferSize: 1024,
 		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
 			if len(originSet) == 0 {
 				return true
 			}
-			origin := r.Header.Get("Origin")
-			return originSet[origin]
+			if originSet[origin] {
+				return true
+			}
+			// Allow any localhost origin in dev (Vite may use different ports)
+			if strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:") {
+				return true
+			}
+			log.Printf("ws origin rejected: %q", origin)
+			return false
 		},
 	}
 

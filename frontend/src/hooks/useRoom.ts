@@ -51,9 +51,9 @@ interface UseRoomParams {
 
 export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomParams) {
   const savedSession = loadSession(roomId);
+  const isReconnect = savedSession !== null;
 
-  // If we have a saved session for this room, skip lobby and go straight to rejoin
-  const [phase, setPhase] = useState<RoomPhase>(savedSession ? 'lobby' : 'lobby');
+  const [phase, setPhase] = useState<RoomPhase>('lobby');
   const [peer, setPeer] = useState<PeerInfo | null>(null);
   const [myName, setMyName] = useState(savedSession?.name || '');
   const [myLang, setMyLang] = useState(savedSession?.lang || sessionStorage.getItem('userLang') || 'EN');
@@ -61,6 +61,7 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
   const [joinPending, setJoinPending] = useState<JoinInfo | null>(
     savedSession ? { name: savedSession.name, lang: savedSession.lang } : null
   );
+  const [reconnecting, setReconnecting] = useState(isReconnect);
   const joinSent = useRef(false);
 
   const joinRoom = useCallback(
@@ -74,6 +75,7 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
       send({ type: 'join', roomId, name, lang });
       setPhase('waiting');
       setJoinPending(null);
+      setReconnecting(false);
     },
     [roomId, send]
   );
@@ -90,15 +92,12 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
       setPeer({ name: msg.name || 'Unknown', lang: msg.lang || '' });
       setPhase('connecting');
 
-      // Server assigns roles: only the offerer creates an offer.
-      // This prevents glare (both sides sending offers simultaneously).
       if (msg.role === 'offerer') {
         startOffer();
       }
     });
 
     const unsubPeerLeft = wsClient.on('peer_left', () => {
-      // Don't go to ended — peer may reconnect. Stay in waiting.
       setPeer(null);
       setPhase('waiting');
     });
@@ -120,8 +119,6 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
       unsubError();
     };
   }, [startOffer]);
-
-  // (role assignment is now server-side via peer_joined.role)
 
   // Transition connecting → connected based on WebRTC state
   useEffect(() => {
@@ -149,5 +146,6 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
     errorMessage,
     joinPending,
     setJoinPending,
+    reconnecting,
   };
 }

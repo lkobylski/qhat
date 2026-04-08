@@ -68,6 +68,12 @@ func (h *Hub) Dispatch(client *ws.Client, raw []byte) {
 		h.relayToPeer(client, raw)
 	case ws.TypeChat:
 		h.handleChat(client, &msg)
+	case ws.TypeTyping:
+		h.relayToPeer(client, raw)
+	case ws.TypeReaction:
+		h.relayToPeer(client, raw)
+	case ws.TypeLangChange:
+		h.handleLangChange(client, &msg)
 	default:
 		client.Send(&ws.OutboundMessage{Type: ws.TypeError, Error: fmt.Sprintf("unknown message type: %s", msg.Type)})
 	}
@@ -224,6 +230,35 @@ func (h *Hub) handleChat(client *ws.Client, msg *ws.InboundMessage) {
 	peerClient := h.findPeerClient(r, client.ID)
 	if peerClient != nil {
 		peerClient.Send(forReceiver)
+	}
+}
+
+func (h *Hub) handleLangChange(client *ws.Client, msg *ws.InboundMessage) {
+	if msg.Lang == "" {
+		return
+	}
+
+	r := h.rooms.Get(client.RoomID)
+	if r == nil {
+		return
+	}
+
+	p := r.Participant(client.ID)
+	if p == nil {
+		return
+	}
+
+	p.Lang = msg.Lang
+	log.Printf("client %s changed language to %s", client.ID, msg.Lang)
+
+	// Notify peer about language change
+	peerClient := h.findPeerClient(r, client.ID)
+	if peerClient != nil {
+		peerClient.Send(&ws.OutboundMessage{
+			Type: ws.TypeLangChange,
+			Name: p.Name,
+			Lang: msg.Lang,
+		})
 	}
 }
 

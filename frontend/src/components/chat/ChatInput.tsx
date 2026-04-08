@@ -2,9 +2,10 @@ import { useState } from 'react';
 
 interface ChatInputProps {
   onSend: (text: string) => void;
+  onTyping?: () => void;
 }
 
-export function ChatInput({ onSend }: ChatInputProps) {
+export function ChatInput({ onSend, onTyping }: ChatInputProps) {
   const [text, setText] = useState('');
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -22,13 +23,20 @@ export function ChatInput({ onSend }: ChatInputProps) {
     }
   };
 
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setText(e.target.value);
+    if (e.target.value.length > 0) {
+      onTyping?.();
+    }
+  };
+
   return (
     <form onSubmit={handleSubmit} className="shrink-0 bg-slate-900 px-4 pb-3 pt-1">
       <div className="flex items-center gap-2">
         <input
           type="text"
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={handleChange}
           onKeyDown={handleKeyDown}
           placeholder="Message text"
           maxLength={1000}

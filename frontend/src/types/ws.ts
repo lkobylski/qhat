@@ -8,7 +8,10 @@ export type MessageType =
   | 'peer_left'
   | 'room_full'
   | 'error'
-  | 'ice_servers';
+  | 'ice_servers'
+  | 'typing'
+  | 'lang_change'
+  | 'reaction';
 
 export interface InboundMessage {
   type: MessageType;

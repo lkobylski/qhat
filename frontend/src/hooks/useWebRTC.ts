@@ -14,8 +14,16 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
   const [connectionState, setConnectionState] = useState<RTCPeerConnectionState>('new');
   const iceServersRef = useRef<RTCIceServer[]>([]);
   const iceRestartCount = useRef(0);
+  const [candidateType, setCandidateType] = useState<string>('');
+  const [quality, setQuality] = useState<'good' | 'ok' | 'poor' | ''>('');
+  const [rtt, setRtt] = useState(0);
+  const statsInterval = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const createPC = useCallback(() => {
+    if (statsInterval.current) {
+      clearInterval(statsInterval.current);
+      statsInterval.current = null;
+    }
     if (pcRef.current) {
       pcRef.current.close();
     }
@@ -55,9 +63,31 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
         });
       }
 
-      // Reset restart count on success
+      // On connected: reset restart count, start polling stats
       if (state === 'connected') {
         iceRestartCount.current = 0;
+        // Poll stats for candidate type, RTT, and quality
+        statsInterval.current = setInterval(async () => {
+          try {
+            const stats = await pc.getStats();
+            stats.forEach((report) => {
+              if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                const local = stats.get(report.localCandidateId);
+                if (local) {
+                  setCandidateType(`${local.candidateType}/${local.protocol}`);
+                }
+                const currentRtt = Math.round((report.currentRoundTripTime || 0) * 1000);
+                setRtt(currentRtt);
+                const loss = report.packetsLost || 0;
+                const sent = report.packetsSent || 1;
+                const lossRate = loss / sent;
+                if (currentRtt < 150 && lossRate < 0.02) setQuality('good');
+                else if (currentRtt < 400 && lossRate < 0.05) setQuality('ok');
+                else setQuality('poor');
+              }
+            });
+          } catch { /* pc closed */ }
+        }, 3000);
       }
     };
 
@@ -188,12 +218,16 @@ export function useWebRTC({ send, localStream }: UseWebRTCParams) {
   useEffect(() => {
     return () => {
       pcRef.current?.close();
+      if (statsInterval.current) clearInterval(statsInterval.current);
     };
   }, []);
 
   return {
     remoteStream,
     connectionState,
+    candidateType,
+    quality,
+    rtt,
     startOffer,
   };
 }

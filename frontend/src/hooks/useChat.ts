@@ -12,17 +12,17 @@ let msgCounter = 0;
 
 export function useChat({ myName, myLang, send }: UseChatParams) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  // Track pending optimistic messages waiting for server echo
+  const [peerTyping, setPeerTyping] = useState(false);
   const pendingTexts = useRef<Set<string>>(new Set());
+  const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTypingSent = useRef(0);
 
   const sendMessage = useCallback(
     (text: string) => {
       if (!text.trim()) return;
 
-      // Track this text so we can replace optimistic with server echo
       pendingTexts.current.add(text);
 
-      // Optimistic add — will be replaced when server echoes back with translation
       const msg: ChatMessage = {
         id: `local-${++msgCounter}`,
         from: myName,
@@ -40,15 +40,27 @@ export function useChat({ myName, myLang, send }: UseChatParams) {
     [myName, myLang, send]
   );
 
+  // Send typing indicator (throttled to max once per 2s)
+  const sendTyping = useCallback(() => {
+    const now = Date.now();
+    if (now - lastTypingSent.current > 2000) {
+      lastTypingSent.current = now;
+      send({ type: 'typing' });
+    }
+  }, [send]);
+
   useEffect(() => {
     const unsub = wsClient.on('chat', (msg: OutboundMessage) => {
       const isMine = msg.from === myName;
 
+      // Peer sent a message — they're no longer typing
+      if (!isMine) {
+        setPeerTyping(false);
+      }
+
       if (isMine && pendingTexts.current.has(msg.original || '')) {
-        // Server echo for our own message — replace optimistic with translated version
         pendingTexts.current.delete(msg.original || '');
         setMessages((prev) => {
-          // Find the optimistic message and replace it
           const idx = prev.findIndex(
             (m) => m.isMine && m.original === msg.original && m.id.startsWith('local-')
           );
@@ -66,7 +78,6 @@ export function useChat({ myName, myLang, send }: UseChatParams) {
         return;
       }
 
-      // Message from peer
       const chatMsg: ChatMessage = {
         id: `remote-${++msgCounter}`,
         from: msg.from || 'Unknown',
@@ -81,8 +92,20 @@ export function useChat({ myName, myLang, send }: UseChatParams) {
       setMessages((prev) => [...prev, chatMsg]);
     });
 
-    return unsub;
+    const unsubTyping = wsClient.on('typing', () => {
+      setPeerTyping(true);
+      // Clear previous timer
+      if (typingTimer.current) clearTimeout(typingTimer.current);
+      // Hide after 3s of no typing
+      typingTimer.current = setTimeout(() => setPeerTyping(false), 3000);
+    });
+
+    return () => {
+      unsub();
+      unsubTyping();
+      if (typingTimer.current) clearTimeout(typingTimer.current);
+    };
   }, [myName]);
 
-  return { messages, sendMessage };
+  return { messages, sendMessage, peerTyping, sendTyping };
 }
