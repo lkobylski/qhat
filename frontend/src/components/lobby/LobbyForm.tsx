@@ -18,9 +18,9 @@ export function LobbyForm({ onJoin, isJoining }: LobbyFormProps) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="mx-auto w-full max-w-sm space-y-4">
+    <form onSubmit={handleSubmit} className="w-full max-w-sm space-y-5">
       <div>
-        <label htmlFor="name" className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor="name" className="mb-2 block text-sm font-medium text-slate-300">
           Your name
         </label>
         <input
@@ -32,11 +32,11 @@ export function LobbyForm({ onJoin, isJoining }: LobbyFormProps) {
           maxLength={30}
           required
           autoFocus
-          className="w-full rounded-lg border border-gray-300 px-3 py-2 text-base focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"
+          className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-400 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
         />
       </div>
       <div>
-        <label htmlFor="lang" className="mb-1 block text-sm font-medium text-gray-700">
+        <label htmlFor="lang" className="mb-2 block text-sm font-medium text-slate-300">
           Your language
         </label>
         <LanguageSelect value={lang} onChange={setLang} className="w-full" />
@@ -44,7 +44,7 @@ export function LobbyForm({ onJoin, isJoining }: LobbyFormProps) {
       <button
         type="submit"
         disabled={!name.trim()}
-        className="w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+        className="w-full rounded-xl bg-blue-600 px-4 py-3.5 text-base font-semibold text-white shadow-md hover:bg-blue-500 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
       >
         {isJoining ? 'Join conversation' : 'Enter room'}
       </button>
