@@ -1,0 +1,15 @@
+[Unit]
+Description=qhat signaling server
+After=network.target
+
+[Service]
+Type=simple
+User=qhat
+WorkingDirectory=/opt/qhat
+ExecStart=/opt/qhat/server/qhat-server
+EnvironmentFile=/opt/qhat/.env
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
