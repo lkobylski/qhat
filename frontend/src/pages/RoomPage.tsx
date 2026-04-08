@@ -113,6 +113,10 @@ export function RoomPage() {
           <>
             {/* Video area */}
             <div className="relative flex-1 min-h-0 bg-black">
+              {/* Debug overlay — remove after testing */}
+              <div className="absolute top-1 left-1 z-30 rounded bg-black/70 px-2 py-1 text-[10px] text-green-400 font-mono">
+                ICE: {webrtc.connectionState} | video: {webrtc.remoteStream ? 'yes' : 'no'} | media: {media.localStream ? 'yes' : 'no'}
+              </div>
               <VideoPanel
                 remoteStream={webrtc.remoteStream}
                 localStream={media.localStream}
