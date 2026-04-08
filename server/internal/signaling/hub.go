@@ -154,22 +154,26 @@ func (h *Hub) handleJoin(client *ws.Client, msg *ws.InboundMessage) {
 		log.Printf("client %s (%s) joined room %s", client.ID, msg.Name, msg.RoomID)
 	}
 
-	// If there's a peer already in the room (connected, not disconnected), notify both sides
+	// If there's a peer already in the room (connected, not disconnected), notify both sides.
+	// The existing peer becomes the offerer, the new joiner becomes the answerer.
+	// This prevents glare (both sides sending offers).
 	peer := r.Peer(client.ID)
 	if peer != nil && !peer.Disconnected {
-		// Notify the new/reconnected joiner about the existing peer
+		// New joiner: you are the answerer, wait for offer
 		client.Send(&ws.OutboundMessage{
 			Type: ws.TypePeerJoined,
 			Name: peer.Name,
 			Lang: peer.Lang,
+			Role: "answerer",
 		})
-		// Notify the existing peer about the new/reconnected joiner
+		// Existing peer: you are the offerer, create offer
 		peerClient := h.findPeerClient(r, client.ID)
 		if peerClient != nil {
 			peerClient.Send(&ws.OutboundMessage{
 				Type: ws.TypePeerJoined,
 				Name: msg.Name,
 				Lang: msg.Lang,
+				Role: "offerer",
 			})
 		}
 	}

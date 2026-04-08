@@ -35,6 +35,7 @@ export interface OutboundMessage {
   iceServers?: RTCIceServer[];
   error?: string;
   translationFailed?: boolean;
+  role?: 'offerer' | 'answerer';
 }
 
 export interface ChatMessage {

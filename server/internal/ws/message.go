@@ -43,6 +43,7 @@ type OutboundMessage struct {
 	ICEServers        []ICEServer     `json:"iceServers,omitempty"`
 	Error             string          `json:"error,omitempty"`
 	TranslationFailed bool            `json:"translationFailed,omitempty"`
+	Role              string          `json:"role,omitempty"` // "offerer" or "answerer" in peer_joined
 }
 
 // ICEServer holds STUN/TURN server configuration sent to clients.

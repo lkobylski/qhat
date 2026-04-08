@@ -61,7 +61,6 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
   const [joinPending, setJoinPending] = useState<JoinInfo | null>(
     savedSession ? { name: savedSession.name, lang: savedSession.lang } : null
   );
-  const wasWaitingRef = useRef(false);
   const joinSent = useRef(false);
 
   const joinRoom = useCallback(
@@ -91,10 +90,9 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
       setPeer({ name: msg.name || 'Unknown', lang: msg.lang || '' });
       setPhase('connecting');
 
-      // Only the side that was already waiting creates the offer.
-      // The newly joined/reconnected side waits for the offer.
+      // Server assigns roles: only the offerer creates an offer.
       // This prevents glare (both sides sending offers simultaneously).
-      if (wasWaitingRef.current) {
+      if (msg.role === 'offerer') {
         startOffer();
       }
     });
@@ -103,7 +101,6 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
       // Don't go to ended — peer may reconnect. Stay in waiting.
       setPeer(null);
       setPhase('waiting');
-      wasWaitingRef.current = true; // we'll be the offerer when peer reconnects
     });
 
     const unsubRoomFull = wsClient.on('room_full', () => {
@@ -124,14 +121,7 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
     };
   }, [startOffer]);
 
-  // Track if we're in waiting state (= we'll be the offerer when peer joins)
-  useEffect(() => {
-    if (phase === 'waiting') {
-      wasWaitingRef.current = true;
-    } else if (phase === 'connecting' || phase === 'connected') {
-      wasWaitingRef.current = false;
-    }
-  }, [phase]);
+  // (role assignment is now server-side via peer_joined.role)
 
   // Transition connecting → connected based on WebRTC state
   useEffect(() => {
