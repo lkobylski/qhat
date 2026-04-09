@@ -188,6 +188,10 @@ export function RoomPage() {
                   cameras={media.cameras}
                   activeCameraId={media.activeCameraId}
                   onCameraChange={media.changeCamera}
+                  audioEnabled={media.audioEnabled}
+                  videoEnabled={media.videoEnabled}
+                  onToggleAudio={media.toggleAudio}
+                  onToggleVideo={media.toggleVideo}
                 />
                 <LobbyForm onJoin={handleJoin} />
               </>
