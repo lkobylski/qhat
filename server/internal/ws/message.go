@@ -16,7 +16,8 @@ const (
 	TypeICEServers = "ice_servers"
 	TypeTyping     = "typing"
 	TypeLangChange = "lang_change"
-	TypeReaction   = "reaction"
+	TypeReaction    = "reaction"
+	TypeMediaState = "media_state"
 
 	// Lobby message types
 	TypeLobbyJoin     = "lobby_join"

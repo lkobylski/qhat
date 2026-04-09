@@ -1,5 +1,6 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useCallback, useRef, useState } from 'react';
+import { wsClient } from '../lib/wsClient';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { addRoomHistory, saveChatMessages, updateRoomHistory } from '../lib/roomHistory';
 import { clearUnread } from '../lib/titleBadge';
@@ -18,6 +19,7 @@ import { ErrorBanner } from '../components/shared/ErrorBanner';
 import { Reactions } from '../components/room/Reactions';
 import { LanguageChanger } from '../components/room/LanguageChanger';
 import { DebugPanel } from '../components/room/DebugPanel';
+import { ReconnectBanner } from '../components/room/ReconnectBanner';
 
 export function RoomPage() {
   const params = useParams<{ id?: string; code?: string }>();
@@ -50,6 +52,30 @@ export function RoomPage() {
   });
   const [activeLang, setActiveLang] = useState(room.myLang);
   const chat = useChat({ myName: room.myName, myLang: activeLang, send });
+
+  // Track peer's mic/cam state
+  const [peerAudioEnabled, setPeerAudioEnabled] = useState(true);
+  const [peerVideoEnabled, setPeerVideoEnabled] = useState(true);
+
+  useEffect(() => {
+    const unsub = wsClient.on('media_state', (msg) => {
+      const data = msg as unknown as { audioEnabled?: boolean; videoEnabled?: boolean };
+      if (data.audioEnabled !== undefined) setPeerAudioEnabled(data.audioEnabled);
+      if (data.videoEnabled !== undefined) setPeerVideoEnabled(data.videoEnabled);
+    });
+    return unsub;
+  }, []);
+
+  // Send media_state to peer on toggle
+  const handleToggleAudio = useCallback(() => {
+    media.toggleAudio();
+    send({ type: 'media_state', audioEnabled: !media.audioEnabled, videoEnabled: media.videoEnabled });
+  }, [media, send]);
+
+  const handleToggleVideo = useCallback(() => {
+    media.toggleVideo();
+    send({ type: 'media_state', audioEnabled: media.audioEnabled, videoEnabled: !media.videoEnabled });
+  }, [media, send]);
 
   const handleJoin = useCallback(
     async (name: string, lang: string) => {
@@ -210,6 +236,7 @@ export function RoomPage() {
         {(room.phase === 'connecting' || room.phase === 'connected') && (
           <>
             <div className="relative flex-1 min-h-0 bg-black">
+              <ReconnectBanner visible={!connected} />
               <DebugPanel
                 connectionState={webrtc.connectionState}
                 candidateType={webrtc.candidateType}
@@ -235,6 +262,8 @@ export function RoomPage() {
                 remoteStream={webrtc.remoteStream}
                 localStream={media.localStream}
                 peerName={room.peer?.name || ''}
+                peerAudioEnabled={peerAudioEnabled}
+                peerVideoEnabled={peerVideoEnabled}
               />
 
               {/* Emoji reactions */}
@@ -255,8 +284,8 @@ export function RoomPage() {
             <MediaControls
               videoEnabled={media.videoEnabled}
               audioEnabled={media.audioEnabled}
-              onToggleVideo={media.toggleVideo}
-              onToggleAudio={media.toggleAudio}
+              onToggleVideo={handleToggleVideo}
+              onToggleAudio={handleToggleAudio}
               onLeave={room.leaveRoom}
               hasMedia={!!media.localStream}
               roomId={roomId}

@@ -12,6 +12,7 @@ export type MessageType =
   | 'typing'
   | 'lang_change'
   | 'reaction'
+  | 'media_state'
   | 'lobby_join'
   | 'lobby_leave'
   | 'lobby_users'
@@ -44,6 +45,8 @@ export interface InboundMessage {
   text?: string;
   targetId?: string;
   callerId?: string;
+  audioEnabled?: boolean;
+  videoEnabled?: boolean;
 }
 
 export interface OutboundMessage {

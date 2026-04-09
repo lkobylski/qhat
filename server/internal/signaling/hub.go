@@ -79,6 +79,8 @@ func (h *Hub) Dispatch(client *ws.Client, raw []byte) {
 		h.relayToPeer(client, raw)
 	case ws.TypeReaction:
 		h.relayToPeer(client, raw)
+	case ws.TypeMediaState:
+		h.relayToPeer(client, raw)
 	case ws.TypeLangChange:
 		h.handleLangChange(client, &msg)
 	case ws.TypeLobbyJoin:
