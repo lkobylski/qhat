@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { wsClient } from '../../lib/wsClient';
 import type { InboundMessage } from '../../types/ws';
 
-const EMOJIS = ['👍', '❤️', '😂', '😮', '🎉', '🔥'];
+const EMOJIS = ['👍', '❤️', '😂', '😮', '🎉', '🔥', '🍆', '😭', '🥹', '😡', '🤬', '😈'];
 const BURST_COUNT = 10;
 
 interface FloatingEmoji {
