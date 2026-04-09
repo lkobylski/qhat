@@ -83,6 +83,8 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
   const leaveRoom = useCallback(() => {
     clearSession();
     sessionStorage.removeItem('fromLobby');
+    sessionStorage.removeItem('fromLobbyName');
+    sessionStorage.removeItem('fromLobbyLang');
     setPhase('ended');
     wsClient.disconnect();
   }, []);
@@ -105,6 +107,8 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
       const isFromLobby = sessionStorage.getItem('fromLobby') === '1';
       if (isFromLobby) {
         sessionStorage.removeItem('fromLobby');
+        sessionStorage.removeItem('fromLobbyName');
+        sessionStorage.removeItem('fromLobbyLang');
         clearSession();
         setPhase('ended');
       } else {

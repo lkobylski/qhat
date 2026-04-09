@@ -207,8 +207,15 @@ func (h *Hub) handleJoin(client *ws.Client, msg *ws.InboundMessage) {
 	}
 }
 
+const maxMessageLength = 450
+
 func (h *Hub) handleChat(client *ws.Client, msg *ws.InboundMessage) {
 	if msg.Text == "" {
+		return
+	}
+
+	if len([]rune(msg.Text)) > maxMessageLength {
+		client.Send(&ws.OutboundMessage{Type: ws.TypeError, Error: "message too long"})
 		return
 	}
 

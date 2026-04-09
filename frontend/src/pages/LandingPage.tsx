@@ -9,8 +9,10 @@ export function LandingPage() {
   const [joinError, setJoinError] = useState('');
   const [history, setHistory] = useState<RoomHistoryEntry[]>(() => getRoomHistory());
 
-  // Clean stale lobby state
+  // Clean stale lobby/room state
   sessionStorage.removeItem('fromLobby');
+  sessionStorage.removeItem('fromLobbyName');
+  sessionStorage.removeItem('fromLobbyLang');
   sessionStorage.removeItem('qhat_session');
 
   const generateCode = () => {

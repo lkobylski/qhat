@@ -29,7 +29,7 @@ export function QualitySelector({ quality, onChange }: QualitySelectorProps) {
       </button>
 
       {open && (
-        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-36 rounded-lg bg-slate-800 shadow-xl border border-slate-700 overflow-hidden">
+        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 z-50 w-36 rounded-lg bg-slate-800 shadow-xl border border-slate-700 overflow-hidden">
           {QUALITY_OPTIONS.map((opt) => (
             <button
               key={opt.value}

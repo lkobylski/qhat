@@ -27,7 +27,7 @@ export function CameraSelector({ cameras, activeCameraId, onChange }: CameraSele
       </button>
 
       {open && (
-        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 w-52 rounded-lg bg-slate-800 shadow-xl border border-slate-700 overflow-hidden">
+        <div className="absolute bottom-full mb-1 left-1/2 -translate-x-1/2 z-50 w-52 rounded-lg bg-slate-800 shadow-xl border border-slate-700 overflow-hidden">
           {cameras.map((cam) => (
             <button
               key={cam.deviceId}

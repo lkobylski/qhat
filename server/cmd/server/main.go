@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"log"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -47,6 +48,7 @@ func main() {
 	mux.Handle("/ws", ws.NewHandler(hub, cfg.AllowedOrigins))
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/api/room/code/", roomCodeHandler(rm))
+	mux.HandleFunc("/api/debug", debugHandler(cfg, rm, lobbyMgr))
 
 	// Serve frontend static files in production
 	if !cfg.IsDevelopment() {
@@ -63,6 +65,55 @@ func main() {
 
 	log.Printf("qhat server starting on :%s (env=%s)", cfg.Port, cfg.Env)
 	log.Fatal(srv.ListenAndServe())
+}
+
+// debugHandler returns server stats including DeepL usage.
+func debugHandler(cfg *config.Config, rm *room.Manager, lob *lobby.Manager) http.HandlerFunc {
+	httpClient := &http.Client{Timeout: 5 * time.Second}
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		result := map[string]interface{}{
+			"rooms":      rm.Count(),
+			"lobbyUsers": lob.Count(),
+			"env":        cfg.Env,
+		}
+
+		// Fetch DeepL usage
+		if cfg.DeepLAPIKey != "" {
+			req, err := http.NewRequest("GET", cfg.DeepLAPIURL+"/usage", nil)
+			if err == nil {
+				req.Header.Set("Authorization", "DeepL-Auth-Key "+cfg.DeepLAPIKey)
+				resp, err := httpClient.Do(req)
+				if err == nil {
+					defer resp.Body.Close()
+					var usage struct {
+						CharacterCount int64 `json:"character_count"`
+						CharacterLimit int64 `json:"character_limit"`
+					}
+					if json.NewDecoder(resp.Body).Decode(&usage) == nil {
+						pct := float64(0)
+						if usage.CharacterLimit > 0 {
+							pct = float64(usage.CharacterLimit-usage.CharacterCount) / float64(usage.CharacterLimit) * 100
+						}
+						result["deepl"] = map[string]interface{}{
+							"used":         usage.CharacterCount,
+							"limit":        usage.CharacterLimit,
+							"remaining":    usage.CharacterLimit - usage.CharacterCount,
+							"remainingPct": math.Round(pct*10) / 10,
+						}
+					}
+				}
+			}
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(result)
+	}
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {

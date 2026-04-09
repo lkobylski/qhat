@@ -17,7 +17,7 @@ import { ChatInput } from '../components/chat/ChatInput';
 import { ErrorBanner } from '../components/shared/ErrorBanner';
 import { Reactions } from '../components/room/Reactions';
 import { LanguageChanger } from '../components/room/LanguageChanger';
-import { ConnectionQuality } from '../components/room/ConnectionQuality';
+import { DebugPanel } from '../components/room/DebugPanel';
 
 export function RoomPage() {
   const params = useParams<{ id?: string; code?: string }>();
@@ -29,10 +29,15 @@ export function RoomPage() {
   const lobbyLang = (location.state as { lang?: string })?.lang;
 
   // Persist fromLobby flag so both sides know to return to lobby.
-  if (stateFromLobby) {
+  // Only valid when we have actual lobby state (name + lang).
+  if (stateFromLobby && lobbyName) {
     sessionStorage.setItem('fromLobby', '1');
+    sessionStorage.setItem('fromLobbyName', lobbyName);
+    sessionStorage.setItem('fromLobbyLang', lobbyLang || 'EN');
   }
-  const fromLobby = stateFromLobby || sessionStorage.getItem('fromLobby') === '1';
+  const savedLobbyName = lobbyName || sessionStorage.getItem('fromLobbyName') || '';
+  const savedLobbyLang = lobbyLang || sessionStorage.getItem('fromLobbyLang') || 'EN';
+  const fromLobby = (stateFromLobby || sessionStorage.getItem('fromLobby') === '1') && !!savedLobbyName;
 
   const { connected, connect, send } = useWebSocket();
   const media = useMedia();
@@ -64,12 +69,11 @@ export function RoomPage() {
     if (autoRejoinTriggered.current) return;
 
     // From lobby: auto-join immediately (WS already connected)
-    if (fromLobby && lobbyName && lobbyLang && room.phase === 'lobby') {
+    if (fromLobby && savedLobbyName && room.phase === 'lobby') {
       autoRejoinTriggered.current = true;
-      setActiveLang(lobbyLang);
+      setActiveLang(savedLobbyLang);
       media.requestPermissions().then(() => {
-        // WS is already connected from lobby — just send join
-        room.joinRoom(lobbyName, lobbyLang);
+        room.joinRoom(savedLobbyName, savedLobbyLang);
       });
       return;
     }
@@ -145,7 +149,7 @@ export function RoomPage() {
                   {fromLobby ? 'Connecting...' : 'Reconnecting...'}
                 </div>
                 <div className="text-sm text-white/60">
-                  {fromLobby ? `Joining as ${lobbyName}` : `Rejoining as ${room.joinPending?.name}`}
+                  {fromLobby ? `Joining as ${savedLobbyName}` : `Rejoining as ${room.joinPending?.name}`}
                 </div>
               </div>
             ) : (
@@ -174,17 +178,18 @@ export function RoomPage() {
         {(room.phase === 'connecting' || room.phase === 'connected') && (
           <>
             <div className="relative flex-1 min-h-0 bg-black">
-              {/* Debug overlay + connection quality */}
-              <div className="absolute top-1 left-1 z-30 flex items-start gap-2">
-                <div className="rounded bg-black/70 px-2 py-1 text-[10px] text-green-400 font-mono leading-relaxed">
-                  <div className="flex items-center gap-2">
-                    <span>ICE: {webrtc.connectionState}{webrtc.candidateType ? ` (${webrtc.candidateType})` : ''}</span>
-                    <ConnectionQuality quality={webrtc.quality} rtt={webrtc.rtt} />
-                  </div>
-                  <div>remote: {webrtc.remoteStream ? `${webrtc.remoteStream.getTracks().length} tracks` : 'none'} | local: {media.localStream ? 'ok' : 'none'}</div>
-                  <div>ws: {connected ? 'ok' : 'off'} | phase: {room.phase} | peer: {room.peer?.name || 'none'} | q: {media.quality}</div>
-                </div>
-              </div>
+              <DebugPanel
+                connectionState={webrtc.connectionState}
+                candidateType={webrtc.candidateType}
+                quality={webrtc.quality}
+                rtt={webrtc.rtt}
+                remoteStream={webrtc.remoteStream}
+                localStream={media.localStream}
+                wsConnected={connected}
+                roomPhase={room.phase}
+                peerName={room.peer?.name || ''}
+                videoQuality={media.quality}
+              />
 
               {/* Language changer — top right */}
               <LanguageChanger

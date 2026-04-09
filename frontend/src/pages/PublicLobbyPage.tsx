@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLobby } from '../hooks/useLobby';
 import { useCall } from '../hooks/useCall';
+import { requestNotificationPermission, showCallNotification } from '../lib/notifications';
 import { LanguageSelect } from '../components/shared/LanguageSelect';
 import { LobbyUserCard } from '../components/public-lobby/LobbyUserCard';
 import { IncomingCallModal } from '../components/public-lobby/IncomingCallModal';
@@ -23,6 +24,7 @@ export function PublicLobbyPage() {
     sessionStorage.setItem('lobbyName', name.trim());
     sessionStorage.setItem('userLang', lang);
     lobby.joinLobby(name.trim(), lang);
+    requestNotificationPermission();
   };
 
   const handleCall = (targetId: string) => {
@@ -36,6 +38,17 @@ export function PublicLobbyPage() {
     sessionStorage.removeItem('fromLobby');
     navigate('/');
   };
+
+  // Show push notification for incoming call when tab is in background
+  const notificationRef = useRef<Notification | null>(null);
+  useEffect(() => {
+    if (call.callState === 'incoming' && call.incomingCaller) {
+      notificationRef.current = showCallNotification(call.incomingCaller.name);
+    } else {
+      notificationRef.current?.close();
+      notificationRef.current = null;
+    }
+  }, [call.callState, call.incomingCaller]);
 
   // Navigate to room when call is accepted
   useEffect(() => {
