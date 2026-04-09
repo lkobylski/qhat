@@ -2,9 +2,10 @@ import { useState } from 'react';
 
 interface WaitingScreenProps {
   roomId: string;
+  onBack?: () => void;
 }
 
-export function WaitingScreen({ roomId }: WaitingScreenProps) {
+export function WaitingScreen({ roomId, onBack }: WaitingScreenProps) {
   const roomCode = roomId;
   const roomUrl = `${window.location.origin}/c/${roomId}`;
   const [copied, setCopied] = useState(false);
@@ -51,6 +52,22 @@ export function WaitingScreen({ roomId }: WaitingScreenProps) {
       <p style={{ fontSize: '11px', color: '#64748b', wordBreak: 'break-all' }}>
         {roomUrl}
       </p>
+
+      {onBack && (
+        <button
+          onClick={onBack}
+          style={{
+            marginTop: '16px',
+            background: 'none',
+            border: 'none',
+            color: '#94a3b8',
+            fontSize: '13px',
+            cursor: 'pointer',
+          }}
+        >
+          &larr; Back to home
+        </button>
+      )}
     </div>
   );
 }

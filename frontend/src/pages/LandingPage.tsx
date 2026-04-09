@@ -81,7 +81,7 @@ export function LandingPage() {
         {/* Public lobby */}
         <button
           onClick={() => navigate('/lobby')}
-          className="w-full rounded-xl bg-slate-700 px-6 py-3 text-base font-medium text-white hover:bg-slate-600 active:scale-[0.98] transition-all"
+          className="w-full rounded-xl bg-fuchsia-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-fuchsia-600/25 hover:bg-fuchsia-500 active:scale-[0.98] transition-all"
         >
           Public Lobby
         </button>
@@ -138,7 +138,7 @@ export function LandingPage() {
               {history.map((entry) => (
                 <button
                   key={entry.code + entry.date}
-                  onClick={() => navigate(`/c/${entry.code}`)}
+                  onClick={() => navigate(`/history/${entry.code}`)}
                   className="flex w-full items-center gap-3 rounded-lg bg-slate-700/50 px-3 py-2 text-left hover:bg-slate-700 transition-colors"
                 >
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-600 text-xs font-bold text-white">
@@ -151,6 +151,7 @@ export function LandingPage() {
                     </div>
                     <div className="text-[11px] text-slate-500">
                       {langName(entry.myLang)} → {langName(entry.peerLang)}
+                      {entry.messageCount > 0 && <span className="ml-1">({entry.messageCount} msgs)</span>}
                     </div>
                   </div>
                   <div className="shrink-0 text-[10px] text-slate-600">{formatDate(entry.date)}</div>
