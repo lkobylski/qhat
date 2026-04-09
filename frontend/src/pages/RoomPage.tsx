@@ -1,6 +1,8 @@
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
+import { addRoomHistory } from '../lib/roomHistory';
+import { clearUnread } from '../lib/titleBadge';
 import { useMedia } from '../hooks/useMedia';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { useRoom } from '../hooks/useRoom';
@@ -88,8 +90,28 @@ export function RoomPage() {
     }
   }, [connected, room]);
 
+  // Save to room history when peer connects
+  useEffect(() => {
+    if (room.phase === 'connecting' && room.peer && room.myName) {
+      addRoomHistory({
+        code: roomId,
+        myName: room.myName,
+        peerName: room.peer.name,
+        myLang: activeLang,
+        peerLang: room.peer.lang,
+        fromLobby: !!fromLobby,
+      });
+    }
+  }, [room.phase, room.peer, room.myName, roomId, activeLang, fromLobby]);
+
+  // Clear title badge on mount
+  useEffect(() => {
+    clearUnread();
+  }, []);
+
   useEffect(() => {
     if (room.phase === 'ended') {
+      clearUnread();
       navigate(fromLobby ? '/lobby' : '/ended');
     }
   }, [room.phase, navigate, fromLobby]);

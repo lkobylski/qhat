@@ -1,17 +1,20 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { getRoomHistory, clearRoomHistory, type RoomHistoryEntry } from '../lib/roomHistory';
+import { LANGUAGES } from '../lib/constants';
 
 export function LandingPage() {
   const navigate = useNavigate();
   const [code, setCode] = useState('');
   const [joinError, setJoinError] = useState('');
+  const [history, setHistory] = useState<RoomHistoryEntry[]>(() => getRoomHistory());
 
   // Clean stale lobby state
   sessionStorage.removeItem('fromLobby');
   sessionStorage.removeItem('qhat_session');
 
   const generateCode = () => {
-    const chars = 'abcdefghjkmnpqrstuvwxyz23456789'; // no ambiguous chars (0/o, 1/l, i)
+    const chars = 'abcdefghjkmnpqrstuvwxyz23456789';
     let result = '';
     const arr = new Uint8Array(6);
     crypto.getRandomValues(arr);
@@ -30,6 +33,22 @@ export function LandingPage() {
     e.preventDefault();
     if (!code.trim()) return;
     navigate(`/c/${code.trim().toLowerCase()}`);
+  };
+
+  const langName = (code: string) => LANGUAGES.find((l) => l.code === code)?.name || code;
+
+  const formatDate = (iso: string) => {
+    const d = new Date(iso);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMin = Math.floor(diffMs / 60000);
+    if (diffMin < 1) return 'Just now';
+    if (diffMin < 60) return `${diffMin}m ago`;
+    const diffHr = Math.floor(diffMin / 60);
+    if (diffHr < 24) return `${diffHr}h ago`;
+    const diffDays = Math.floor(diffHr / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString();
   };
 
   return (
@@ -96,6 +115,47 @@ export function LandingPage() {
 
         {joinError && (
           <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-400">{joinError}</p>
+        )}
+
+        {/* Room history */}
+        {history.length > 0 && (
+          <div className="text-left">
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-medium text-slate-500 uppercase tracking-wide">Recent conversations</h3>
+              <button
+                onClick={() => {
+                  clearRoomHistory();
+                  setHistory([]);
+                }}
+                className="text-[10px] text-slate-600 hover:text-slate-400 transition-colors"
+              >
+                Clear
+              </button>
+            </div>
+            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+              {history.map((entry) => (
+                <button
+                  key={entry.code + entry.date}
+                  onClick={() => navigate(`/c/${entry.code}`)}
+                  className="flex w-full items-center gap-3 rounded-lg bg-slate-700/50 px-3 py-2 text-left hover:bg-slate-700 transition-colors"
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-600 text-xs font-bold text-white">
+                    {entry.peerName.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-white truncate">
+                      {entry.peerName}
+                      {entry.fromLobby && <span className="ml-1.5 text-[10px] text-slate-500">lobby</span>}
+                    </div>
+                    <div className="text-[11px] text-slate-500">
+                      {langName(entry.myLang)} → {langName(entry.peerLang)}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-[10px] text-slate-600">{formatDate(entry.date)}</div>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Footer */}
