@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getRoomHistory, loadChatMessages, deleteRoomHistoryEntry } from '../lib/roomHistory';
 import { LANGUAGES } from '../lib/constants';
@@ -38,13 +39,28 @@ export function HistoryPage() {
     return `${hr}h ${min % 60}m`;
   };
 
+  const [copied, setCopied] = useState(false);
+
   const handleDelete = () => {
     deleteRoomHistoryEntry(code);
     navigate('/');
   };
 
-  const handleNewCall = () => {
+  const handleRejoin = () => {
     navigate(`/c/${code}`);
+  };
+
+  const handleShareLink = async () => {
+    const url = `${window.location.origin}/c/${code}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'qhat', text: `Join my video chat!`, url });
+        return;
+      } catch { /* cancelled */ }
+    }
+    await navigator.clipboard.writeText(url);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
@@ -91,18 +107,26 @@ export function HistoryPage() {
         </div>
 
         {/* Actions */}
-        <div className="shrink-0 flex gap-2 border-t border-slate-700 px-4 py-3">
-          <button
-            onClick={handleNewCall}
-            className="flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
-          >
-            New call with same room
-          </button>
+        <div className="shrink-0 space-y-2 border-t border-slate-700 px-4 py-3">
+          <div className="flex gap-2">
+            <button
+              onClick={handleRejoin}
+              className="flex-1 rounded-xl bg-blue-600 py-2.5 text-sm font-medium text-white hover:bg-blue-500 transition-colors"
+            >
+              Rejoin room
+            </button>
+            <button
+              onClick={handleShareLink}
+              className="flex-1 rounded-xl bg-slate-700 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-600 transition-colors"
+            >
+              {copied ? 'Link copied!' : 'Share room link'}
+            </button>
+          </div>
           <button
             onClick={handleDelete}
-            className="rounded-xl bg-slate-700 px-4 py-2.5 text-sm text-slate-300 hover:bg-slate-600 transition-colors"
+            className="w-full rounded-xl py-2 text-xs text-slate-500 hover:text-red-400 transition-colors"
           >
-            Delete
+            Delete from history
           </button>
         </div>
       </div>
