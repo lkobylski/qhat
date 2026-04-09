@@ -118,12 +118,15 @@ export function RoomPage() {
     }
   }, [chat.messages, roomId]);
 
-  // Update duration when call ends
+  // Update duration and stop media when call ends
   useEffect(() => {
-    if (room.phase === 'ended' && callStartRef.current > 0) {
-      const duration = Math.floor((Date.now() - callStartRef.current) / 1000);
-      updateRoomHistory(roomId, { durationSec: duration });
-      callStartRef.current = 0;
+    if (room.phase === 'ended') {
+      media.stopMedia();
+      if (callStartRef.current > 0) {
+        const duration = Math.floor((Date.now() - callStartRef.current) / 1000);
+        updateRoomHistory(roomId, { durationSec: duration });
+        callStartRef.current = 0;
+      }
     }
   }, [room.phase, roomId]);
 

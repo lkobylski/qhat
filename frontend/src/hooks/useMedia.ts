@@ -150,6 +150,12 @@ export function useMedia() {
     setAudioEnabled((prev) => !prev);
   }, []);
 
+  const stopMedia = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setLocalStream(null);
+  }, []);
+
   useEffect(() => {
     return () => {
       streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -163,6 +169,7 @@ export function useMedia() {
     toggleVideo,
     toggleAudio,
     requestPermissions,
+    stopMedia,
     changeQuality,
     quality,
     cameras,
