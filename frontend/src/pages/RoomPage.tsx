@@ -26,7 +26,7 @@ export function RoomPage() {
   const lobbyName = (location.state as { name?: string })?.name;
   const lobbyLang = (location.state as { lang?: string })?.lang;
 
-  // Persist fromLobby flag so both sides know to return to lobby
+  // Persist fromLobby flag so both sides know to return to lobby.
   if (stateFromLobby) {
     sessionStorage.setItem('fromLobby', '1');
   }

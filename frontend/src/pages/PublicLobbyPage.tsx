@@ -33,6 +33,7 @@ export function PublicLobbyPage() {
 
   const handleLeaveLobby = () => {
     lobby.leaveLobby();
+    sessionStorage.removeItem('fromLobby');
     navigate('/');
   };
 

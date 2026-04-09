@@ -6,6 +6,10 @@ export function LandingPage() {
   const [code, setCode] = useState('');
   const [joinError, setJoinError] = useState('');
 
+  // Clean stale lobby state
+  sessionStorage.removeItem('fromLobby');
+  sessionStorage.removeItem('qhat_session');
+
   const generateCode = () => {
     const chars = 'abcdefghjkmnpqrstuvwxyz23456789'; // no ambiguous chars (0/o, 1/l, i)
     let result = '';
