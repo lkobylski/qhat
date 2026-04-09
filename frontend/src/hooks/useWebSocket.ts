@@ -4,8 +4,8 @@ import { WS_URL } from '../lib/constants';
 import type { InboundMessage } from '../types/ws';
 
 export function useWebSocket() {
-  const [connected, setConnected] = useState(false);
-  const connectedRef = useRef(false);
+  const [connected, setConnected] = useState(() => wsClient.connected);
+  const connectedRef = useRef(wsClient.connected);
 
   useEffect(() => {
     const unsub = wsClient.onConnectionChange((val) => {
