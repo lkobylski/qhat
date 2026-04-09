@@ -1,6 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { wsClient } from '../lib/wsClient';
 import { WS_URL } from '../lib/constants';
+import { playMessageSound } from '../lib/sounds';
+import { incrementUnread } from '../lib/titleBadge';
 import type { LobbyUser, OutboundMessage } from '../types/ws';
 
 export function useLobby() {
@@ -58,6 +60,11 @@ export function useLobby() {
           }
           return [...prev, newUser];
         });
+        // Notify when tab is not focused
+        if (document.hidden) {
+          playMessageSound();
+          incrementUnread();
+        }
       }
     });
 
