@@ -12,19 +12,23 @@ export function useLobby() {
   const joinLobby = useCallback((name: string, lang: string) => {
     wsClient.connect(WS_URL);
 
-    const onConnect = (connected: boolean) => {
-      if (connected && !joinSent.current) {
-        joinSent.current = true;
-        wsClient.send({ type: 'lobby_join', name, lang });
-        setIsInLobby(true);
-      }
+    const doJoin = () => {
+      joinSent.current = true;
+      wsClient.send({ type: 'lobby_join', name, lang });
+      setIsInLobby(true);
     };
 
+    // Allow re-join for profile updates
     if (wsClient.connected) {
-      onConnect(true);
+      doJoin();
+      return () => {};
     }
 
-    const unsub = wsClient.onConnectionChange(onConnect);
+    const unsub = wsClient.onConnectionChange((connected: boolean) => {
+      if (connected && !joinSent.current) {
+        doJoin();
+      }
+    });
     return unsub;
   }, []);
 
