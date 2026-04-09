@@ -20,8 +20,16 @@ func (h *Hub) handleLobbyJoin(client *ws.Client, msg *ws.InboundMessage) {
 		return
 	}
 
-	// Check if this is a reconnect (same name within grace period)
+	// Remove any stale entries for same name (e.g., returning from a call with old clientID)
 	h.lobby.Reconnect(client.ID, msg.Name)
+	// Also clean lobbyClients map for removed entries
+	h.mu.Lock()
+	for id := range h.lobbyClients {
+		if h.lobby.Get(id) == nil && id != client.ID {
+			delete(h.lobbyClients, id)
+		}
+	}
+	h.mu.Unlock()
 
 	user := &lobby.LobbyUser{
 		ClientID: client.ID,

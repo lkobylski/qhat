@@ -77,18 +77,18 @@ func (m *Manager) MarkDisconnected(clientID string) {
 	}
 }
 
-// Reconnect clears disconnected state if the same name reconnects.
+// Reconnect removes any existing entries with the same name (stale or disconnected).
 func (m *Manager) Reconnect(clientID, name string) bool {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	found := false
 	for id, u := range m.users {
-		if u.Name == name && u.Disconnected {
-			// Remove old entry, caller will add new one
+		if u.Name == name && id != clientID {
 			delete(m.users, id)
-			return true
+			found = true
 		}
 	}
-	return false
+	return found
 }
 
 // CleanupDisconnected removes users disconnected longer than grace period.
