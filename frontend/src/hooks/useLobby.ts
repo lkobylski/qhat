@@ -47,7 +47,11 @@ export function useLobby() {
       if (msg.user) {
         const newUser = msg.user;
         setUsers((prev) => {
-          if (prev.some((u) => u.id === newUser.id)) return prev;
+          // Upsert: replace if exists (same id, status might have changed), add if new
+          const exists = prev.some((u) => u.id === newUser.id);
+          if (exists) {
+            return prev.map((u) => (u.id === newUser.id ? newUser : u));
+          }
           return [...prev, newUser];
         });
       }
