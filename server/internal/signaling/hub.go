@@ -10,6 +10,7 @@ import (
 
 	"github.com/lkobylski/qhat/server/internal/chat"
 	"github.com/lkobylski/qhat/server/internal/config"
+	"github.com/lkobylski/qhat/server/internal/lobby"
 	"github.com/lkobylski/qhat/server/internal/ratelimit"
 	"github.com/lkobylski/qhat/server/internal/room"
 	"github.com/lkobylski/qhat/server/internal/ws"
@@ -21,21 +22,27 @@ type Hub struct {
 	config      *config.Config
 	chatProc    *chat.Processor
 	rateLimiter *ratelimit.Limiter
+	lobby       *lobby.Manager
 
-	mu          sync.RWMutex
-	clients     map[string]*ws.Client // client ID → *ws.Client
-	clientRooms map[string]string     // client ID → room ID
+	mu           sync.RWMutex
+	clients      map[string]*ws.Client // client ID → *ws.Client
+	clientRooms  map[string]string     // client ID → room ID
+	lobbyClients map[string]bool       // client ID → in lobby
+	pendingCalls map[string]string     // caller ID → target ID
 }
 
 // NewHub creates a signaling hub.
-func NewHub(rooms *room.Manager, cfg *config.Config, chatProc *chat.Processor, rl *ratelimit.Limiter) *Hub {
+func NewHub(rooms *room.Manager, cfg *config.Config, chatProc *chat.Processor, rl *ratelimit.Limiter, lob *lobby.Manager) *Hub {
 	return &Hub{
-		rooms:       rooms,
-		config:      cfg,
-		chatProc:    chatProc,
-		rateLimiter: rl,
-		clients:     make(map[string]*ws.Client),
-		clientRooms: make(map[string]string),
+		rooms:        rooms,
+		config:       cfg,
+		chatProc:     chatProc,
+		rateLimiter:  rl,
+		lobby:        lob,
+		clients:      make(map[string]*ws.Client),
+		clientRooms:  make(map[string]string),
+		lobbyClients: make(map[string]bool),
+		pendingCalls: make(map[string]string),
 	}
 }
 
@@ -74,6 +81,18 @@ func (h *Hub) Dispatch(client *ws.Client, raw []byte) {
 		h.relayToPeer(client, raw)
 	case ws.TypeLangChange:
 		h.handleLangChange(client, &msg)
+	case ws.TypeLobbyJoin:
+		h.handleLobbyJoin(client, &msg)
+	case ws.TypeLobbyLeave:
+		h.handleLobbyLeave(client)
+	case ws.TypeCallRequest:
+		h.handleCallRequest(client, &msg)
+	case ws.TypeCallAccept:
+		h.handleCallAccept(client, &msg)
+	case ws.TypeCallDecline:
+		h.handleCallDecline(client, &msg)
+	case ws.TypeCallCancel:
+		h.handleCallCancel(client)
 	default:
 		client.Send(&ws.OutboundMessage{Type: ws.TypeError, Error: fmt.Sprintf("unknown message type: %s", msg.Type)})
 	}
@@ -84,6 +103,9 @@ const reconnectGrace = 20 * time.Second
 // HandleDisconnect is called when a client's WebSocket connection closes.
 // Instead of removing immediately, marks participant as disconnected with a grace period.
 func (h *Hub) HandleDisconnect(client *ws.Client) {
+	// Handle lobby disconnect
+	h.handleLobbyDisconnect(client.ID)
+
 	h.mu.Lock()
 	delete(h.clients, client.ID)
 	roomID, ok := h.clientRooms[client.ID]

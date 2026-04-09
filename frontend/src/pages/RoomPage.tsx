@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, useCallback, useRef, useState } from 'react';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useMedia } from '../hooks/useMedia';
@@ -21,6 +21,16 @@ export function RoomPage() {
   const params = useParams<{ id?: string; code?: string }>();
   const roomId = params.code || params.id || '';
   const navigate = useNavigate();
+  const location = useLocation();
+  const stateFromLobby = (location.state as { fromLobby?: boolean })?.fromLobby;
+  const lobbyName = (location.state as { name?: string })?.name;
+  const lobbyLang = (location.state as { lang?: string })?.lang;
+
+  // Persist fromLobby flag so both sides know to return to lobby
+  if (stateFromLobby) {
+    sessionStorage.setItem('fromLobby', '1');
+  }
+  const fromLobby = stateFromLobby || sessionStorage.getItem('fromLobby') === '1';
 
   const { connected, connect, send } = useWebSocket();
   const media = useMedia();
@@ -46,17 +56,31 @@ export function RoomPage() {
     [media, connect, room]
   );
 
-  // Auto-rejoin on refresh if we have a saved session
+  // Auto-join from lobby (call accepted) or auto-rejoin on refresh
   const autoRejoinTriggered = useRef(false);
   useEffect(() => {
-    if (room.joinPending && room.phase === 'lobby' && !autoRejoinTriggered.current) {
+    if (autoRejoinTriggered.current) return;
+
+    // From lobby: auto-join immediately (WS already connected)
+    if (fromLobby && lobbyName && lobbyLang && room.phase === 'lobby') {
+      autoRejoinTriggered.current = true;
+      setActiveLang(lobbyLang);
+      media.requestPermissions().then(() => {
+        // WS is already connected from lobby — just send join
+        room.joinRoom(lobbyName, lobbyLang);
+      });
+      return;
+    }
+
+    // From refresh: saved session triggers rejoin
+    if (room.joinPending && room.phase === 'lobby') {
       autoRejoinTriggered.current = true;
       setActiveLang(room.joinPending.lang);
       media.requestPermissions().then(() => {
         connect();
       });
     }
-  }, [room.joinPending, room.phase, media, connect]);
+  }, [room.joinPending, room.phase, media, connect, fromLobby, lobbyName, lobbyLang, room]);
 
   useEffect(() => {
     if (connected && room.joinPending) {
@@ -66,9 +90,9 @@ export function RoomPage() {
 
   useEffect(() => {
     if (room.phase === 'ended') {
-      navigate('/ended');
+      navigate(fromLobby ? '/lobby' : '/ended');
     }
-  }, [room.phase, navigate]);
+  }, [room.phase, navigate, fromLobby]);
 
   if (!roomId) {
     return <div className="p-8 text-center text-red-600">Invalid room link</div>;
@@ -90,19 +114,26 @@ export function RoomPage() {
           </div>
         )}
 
-        {/* Lobby or reconnecting */}
+        {/* Lobby, reconnecting, or auto-joining from lobby call */}
         {room.phase === 'lobby' && (
           <div className="flex flex-1 flex-col items-center justify-center px-4 gap-6">
-            {room.reconnecting ? (
+            {room.reconnecting || fromLobby ? (
               <div className="text-center text-white">
-                <div className="mb-2 text-lg font-medium animate-pulse">Reconnecting...</div>
-                <div className="text-sm text-white/60">Rejoining as {room.joinPending?.name}</div>
+                <div className="mb-2 text-lg font-medium animate-pulse">
+                  {fromLobby ? 'Connecting...' : 'Reconnecting...'}
+                </div>
+                <div className="text-sm text-white/60">
+                  {fromLobby ? `Joining as ${lobbyName}` : `Rejoining as ${room.joinPending?.name}`}
+                </div>
               </div>
             ) : (
               <>
                 <CameraPreview
                   stream={media.localStream}
                   onRequestCamera={media.requestPermissions}
+                  cameras={media.cameras}
+                  activeCameraId={media.activeCameraId}
+                  onCameraChange={media.changeCamera}
                 />
                 <LobbyForm onJoin={handleJoin} />
               </>
@@ -172,6 +203,9 @@ export function RoomPage() {
               roomId={roomId}
               videoQuality={media.quality}
               onQualityChange={media.changeQuality}
+              cameras={media.cameras}
+              activeCameraId={media.activeCameraId}
+              onCameraChange={media.changeCamera}
             />
 
             <ChatInput onSend={chat.sendMessage} onTyping={chat.sendTyping} />

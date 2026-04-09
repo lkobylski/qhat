@@ -82,6 +82,7 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
 
   const leaveRoom = useCallback(() => {
     clearSession();
+    sessionStorage.removeItem('fromLobby');
     setPhase('ended');
     wsClient.disconnect();
   }, []);
@@ -99,7 +100,16 @@ export function useRoom({ roomId, send, startOffer, connectionState }: UseRoomPa
 
     const unsubPeerLeft = wsClient.on('peer_left', () => {
       setPeer(null);
-      setPhase('waiting');
+      // Lobby calls: end immediately so both return to lobby
+      // Private rooms: stay in waiting for potential reconnect
+      const isFromLobby = sessionStorage.getItem('fromLobby') === '1';
+      if (isFromLobby) {
+        sessionStorage.removeItem('fromLobby');
+        clearSession();
+        setPhase('ended');
+      } else {
+        setPhase('waiting');
+      }
     });
 
     const unsubRoomFull = wsClient.on('room_full', () => {

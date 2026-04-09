@@ -9,6 +9,7 @@ import (
 
 	"github.com/lkobylski/qhat/server/internal/chat"
 	"github.com/lkobylski/qhat/server/internal/config"
+	"github.com/lkobylski/qhat/server/internal/lobby"
 	"github.com/lkobylski/qhat/server/internal/ratelimit"
 	"github.com/lkobylski/qhat/server/internal/room"
 	"github.com/lkobylski/qhat/server/internal/signaling"
@@ -37,7 +38,8 @@ func main() {
 	rl.StartCleanup(5 * time.Minute)
 
 	chatProc := chat.NewProcessor(translator)
-	hub := signaling.NewHub(rm, cfg, chatProc, rl)
+	lobbyMgr := lobby.NewManager()
+	hub := signaling.NewHub(rm, cfg, chatProc, rl, lobbyMgr)
 
 	rm.StartCleanup(5 * time.Minute)
 

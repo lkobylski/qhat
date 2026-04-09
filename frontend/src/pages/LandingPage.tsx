@@ -53,6 +53,14 @@ export function LandingPage() {
           Start a conversation
         </button>
 
+        {/* Public lobby */}
+        <button
+          onClick={() => navigate('/lobby')}
+          className="w-full rounded-xl bg-slate-700 px-6 py-3 text-base font-medium text-white hover:bg-slate-600 active:scale-[0.98] transition-all"
+        >
+          Public Lobby
+        </button>
+
         {/* Divider */}
         <div className="flex items-center gap-3">
           <div className="flex-1 border-t border-slate-600" />

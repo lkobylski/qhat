@@ -31,12 +31,8 @@ export function useWebSocket() {
     wsClient.send(msg);
   }, []);
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      wsClient.disconnect();
-    };
-  }, []);
+  // No disconnect on unmount — WS must persist across lobby→room navigation.
+  // Pages explicitly call disconnect() when they want to tear down.
 
   return { connected, connect, disconnect, send };
 }

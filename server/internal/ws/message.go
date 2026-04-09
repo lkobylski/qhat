@@ -17,6 +17,24 @@ const (
 	TypeTyping     = "typing"
 	TypeLangChange = "lang_change"
 	TypeReaction   = "reaction"
+
+	// Lobby message types
+	TypeLobbyJoin     = "lobby_join"
+	TypeLobbyLeave    = "lobby_leave"
+	TypeLobbyUsers    = "lobby_users"
+	TypeLobbyUserJoin = "lobby_user_join"
+	TypeLobbyUserLeft = "lobby_user_left"
+	TypeLobbyUpdate   = "lobby_update"
+
+	// Call flow message types
+	TypeCallRequest   = "call_request"
+	TypeCallIncoming  = "call_incoming"
+	TypeCallAccept    = "call_accept"
+	TypeCallDecline   = "call_decline"
+	TypeCallDeclined  = "call_declined"
+	TypeCallStart     = "call_start"
+	TypeCallCancel    = "call_cancel"
+	TypeCallCancelled = "call_cancelled"
 )
 
 // InboundMessage represents a message received from a client.
@@ -28,6 +46,8 @@ type InboundMessage struct {
 	SDP       string          `json:"sdp,omitempty"`
 	Candidate json.RawMessage `json:"candidate,omitempty"`
 	Text      string          `json:"text,omitempty"`
+	TargetID  string          `json:"targetId,omitempty"` // for call_request
+	CallerID  string          `json:"callerId,omitempty"` // for call_accept/decline
 }
 
 // OutboundMessage represents a message sent to a client.
@@ -46,7 +66,21 @@ type OutboundMessage struct {
 	ICEServers        []ICEServer     `json:"iceServers,omitempty"`
 	Error             string          `json:"error,omitempty"`
 	TranslationFailed bool            `json:"translationFailed,omitempty"`
-	Role              string          `json:"role,omitempty"` // "offerer" or "answerer" in peer_joined
+	Role              string          `json:"role,omitempty"`     // "offerer" or "answerer"
+	Users             []LobbyUserDTO  `json:"users,omitempty"`   // for lobby_users
+	User              *LobbyUserDTO   `json:"user,omitempty"`    // for lobby_user_join/left/update
+	CallerID          string          `json:"callerId,omitempty"`
+	CallerName        string          `json:"callerName,omitempty"`
+	CallerLang        string          `json:"callerLang,omitempty"`
+	RoomCode          string          `json:"roomCode,omitempty"` // for call_start
+}
+
+// LobbyUserDTO is the client-facing representation of a lobby user.
+type LobbyUserDTO struct {
+	ID     string `json:"id"`
+	Name   string `json:"name"`
+	Lang   string `json:"lang"`
+	Status string `json:"status"` // "available" or "in_call"
 }
 
 // ICEServer holds STUN/TURN server configuration sent to clients.

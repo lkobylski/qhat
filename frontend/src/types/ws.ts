@@ -11,7 +11,28 @@ export type MessageType =
   | 'ice_servers'
   | 'typing'
   | 'lang_change'
-  | 'reaction';
+  | 'reaction'
+  | 'lobby_join'
+  | 'lobby_leave'
+  | 'lobby_users'
+  | 'lobby_user_join'
+  | 'lobby_user_left'
+  | 'lobby_update'
+  | 'call_request'
+  | 'call_incoming'
+  | 'call_accept'
+  | 'call_decline'
+  | 'call_declined'
+  | 'call_start'
+  | 'call_cancel'
+  | 'call_cancelled';
+
+export interface LobbyUser {
+  id: string;
+  name: string;
+  lang: string;
+  status: 'available' | 'in_call';
+}
 
 export interface InboundMessage {
   type: MessageType;
@@ -21,6 +42,8 @@ export interface InboundMessage {
   sdp?: string;
   candidate?: RTCIceCandidateInit;
   text?: string;
+  targetId?: string;
+  callerId?: string;
 }
 
 export interface OutboundMessage {
@@ -39,6 +62,12 @@ export interface OutboundMessage {
   error?: string;
   translationFailed?: boolean;
   role?: 'offerer' | 'answerer';
+  users?: LobbyUser[];
+  user?: LobbyUser;
+  callerId?: string;
+  callerName?: string;
+  callerLang?: string;
+  roomCode?: string;
 }
 
 export interface ChatMessage {

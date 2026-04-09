@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { QualitySelector } from './QualitySelector';
-import type { VideoQuality } from '../../hooks/useMedia';
+import { CameraSelector } from './CameraSelector';
+import type { VideoQuality, CameraDevice } from '../../hooks/useMedia';
 
 interface MediaControlsProps {
   videoEnabled: boolean;
@@ -12,6 +13,9 @@ interface MediaControlsProps {
   roomId: string;
   videoQuality: VideoQuality;
   onQualityChange: (q: VideoQuality) => void;
+  cameras: CameraDevice[];
+  activeCameraId: string;
+  onCameraChange: (deviceId: string) => void;
 }
 
 export function MediaControls({
@@ -24,6 +28,9 @@ export function MediaControls({
   roomId,
   videoQuality,
   onQualityChange,
+  cameras,
+  activeCameraId,
+  onCameraChange,
 }: MediaControlsProps) {
   const [shared, setShared] = useState(false);
 
@@ -74,6 +81,7 @@ export function MediaControls({
             {videoEnabled ? 'Cam' : 'Cam Off'}
           </button>
           <QualitySelector quality={videoQuality} onChange={onQualityChange} />
+          <CameraSelector cameras={cameras} activeCameraId={activeCameraId} onChange={onCameraChange} />
         </>
       )}
       <button

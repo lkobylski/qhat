@@ -1,11 +1,15 @@
 import { useEffect, useRef } from 'react';
+import type { CameraDevice } from '../../hooks/useMedia';
 
 interface CameraPreviewProps {
   stream: MediaStream | null;
   onRequestCamera: () => Promise<void>;
+  cameras: CameraDevice[];
+  activeCameraId: string;
+  onCameraChange: (deviceId: string) => void;
 }
 
-export function CameraPreview({ stream, onRequestCamera }: CameraPreviewProps) {
+export function CameraPreview({ stream, onRequestCamera, cameras, activeCameraId, onCameraChange }: CameraPreviewProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -35,20 +39,30 @@ export function CameraPreview({ stream, onRequestCamera }: CameraPreviewProps) {
   }
 
   return (
-    <div className="relative h-40 w-56 overflow-hidden rounded-2xl border-2 border-slate-700 shadow-lg">
-      <video
-        ref={videoRef}
-        autoPlay
-        playsInline
-        muted
-        className="h-full w-full object-cover"
-        style={{ transform: 'scaleX(-1)' }}
-      />
-      <div className="absolute bottom-2 left-0 right-0 text-center">
-        <span className="rounded-full bg-black/50 px-2 py-0.5 text-[10px] text-white/70 backdrop-blur-sm">
-          Camera preview
-        </span>
+    <div className="flex flex-col items-center gap-2">
+      <div className="relative h-40 w-56 overflow-hidden rounded-2xl border-2 border-slate-700 shadow-lg">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted
+          className="h-full w-full object-cover"
+          style={{ transform: 'scaleX(-1)' }}
+        />
       </div>
+      {cameras.length > 1 && (
+        <select
+          value={activeCameraId}
+          onChange={(e) => onCameraChange(e.target.value)}
+          className="w-56 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 focus:border-blue-500 focus:outline-none"
+        >
+          {cameras.map((cam) => (
+            <option key={cam.deviceId} value={cam.deviceId}>
+              {cam.label}
+            </option>
+          ))}
+        </select>
+      )}
     </div>
   );
 }

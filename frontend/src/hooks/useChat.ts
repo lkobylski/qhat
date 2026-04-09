@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { wsClient } from '../lib/wsClient';
+import { playMessageSound } from '../lib/sounds';
 import type { InboundMessage, OutboundMessage, ChatMessage } from '../types/ws';
 
 interface UseChatParams {
@@ -90,6 +91,7 @@ export function useChat({ myName, myLang, send }: UseChatParams) {
         translationFailed: msg.translationFailed,
       };
       setMessages((prev) => [...prev, chatMsg]);
+      playMessageSound();
     });
 
     const unsubTyping = wsClient.on('typing', () => {
