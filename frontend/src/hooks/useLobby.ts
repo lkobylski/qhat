@@ -6,6 +6,7 @@ import type { LobbyUser, OutboundMessage } from '../types/ws';
 export function useLobby() {
   const [users, setUsers] = useState<LobbyUser[]>([]);
   const [isInLobby, setIsInLobby] = useState(false);
+  const [loading, setLoading] = useState(false);
   const joinSent = useRef(false);
 
   const joinLobby = useCallback((name: string, lang: string) => {
@@ -16,6 +17,7 @@ export function useLobby() {
         joinSent.current = true;
         wsClient.send({ type: 'lobby_join', name, lang });
         setIsInLobby(true);
+        setLoading(true);
       }
     };
 
@@ -33,6 +35,7 @@ export function useLobby() {
     wsClient.send({ type: 'lobby_leave' });
     wsClient.disconnect();
     setIsInLobby(false);
+    setLoading(false);
     setUsers([]);
     joinSent.current = false;
   }, []);
@@ -41,6 +44,7 @@ export function useLobby() {
     const unsubUsers = wsClient.on('lobby_users', (msg: OutboundMessage) => {
       if (msg.users) {
         setUsers(msg.users);
+        setLoading(false);
       }
     });
 
@@ -78,5 +82,5 @@ export function useLobby() {
     };
   }, []);
 
-  return { users, isInLobby, joinLobby, leaveLobby };
+  return { users, isInLobby, loading, joinLobby, leaveLobby };
 }

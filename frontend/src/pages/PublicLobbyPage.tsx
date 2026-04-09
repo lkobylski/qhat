@@ -2,8 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLobby } from '../hooks/useLobby';
 import { useCall } from '../hooks/useCall';
+import { useToast } from '../components/shared/Toast';
 import { requestNotificationPermission, showCallNotification } from '../lib/notifications';
 import { LanguageSelect } from '../components/shared/LanguageSelect';
+import { SkeletonUserList } from '../components/shared/Skeleton';
 import { LobbyUserCard } from '../components/public-lobby/LobbyUserCard';
 import { IncomingCallModal } from '../components/public-lobby/IncomingCallModal';
 import { CallingOverlay } from '../components/public-lobby/CallingOverlay';
@@ -12,11 +14,13 @@ export function PublicLobbyPage() {
   const navigate = useNavigate();
   const lobby = useLobby();
   const call = useCall();
+  const { toast } = useToast();
 
   const [name, setName] = useState(() => sessionStorage.getItem('lobbyName') || '');
   const [lang, setLang] = useState(() => sessionStorage.getItem('userLang') || 'EN');
   const [callingUserName, setCallingUserName] = useState('');
   const navigated = useRef(false);
+  const prevCallState = useRef(call.callState);
 
   const handleJoinLobby = (e: React.FormEvent) => {
     e.preventDefault();
@@ -38,6 +42,20 @@ export function PublicLobbyPage() {
     sessionStorage.removeItem('fromLobby');
     navigate('/');
   };
+
+  // Toast notifications for call state changes
+  useEffect(() => {
+    const prev = prevCallState.current;
+    const curr = call.callState;
+    prevCallState.current = curr;
+
+    if (prev === 'calling' && curr === 'idle') {
+      toast('Call declined', 'error');
+    }
+    if (prev === 'incoming' && curr === 'idle') {
+      toast('Call cancelled', 'info');
+    }
+  }, [call.callState, toast]);
 
   // Show push notification for incoming call when tab is in background
   const notificationRef = useRef<Notification | null>(null);
@@ -120,7 +138,9 @@ export function PublicLobbyPage() {
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto px-4 py-3">
-            {lobby.users.length === 0 ? (
+            {lobby.loading ? (
+              <SkeletonUserList count={3} />
+            ) : lobby.users.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center text-center">
                 <div className="mb-3 text-4xl">👀</div>
                 <p className="text-slate-400">No one else is here yet</p>
