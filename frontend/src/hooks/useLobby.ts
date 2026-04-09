@@ -6,7 +6,7 @@ import type { LobbyUser, OutboundMessage } from '../types/ws';
 export function useLobby() {
   const [users, setUsers] = useState<LobbyUser[]>([]);
   const [isInLobby, setIsInLobby] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [usersReceived, setUsersReceived] = useState(false);
   const joinSent = useRef(false);
 
   const joinLobby = useCallback((name: string, lang: string) => {
@@ -17,17 +17,14 @@ export function useLobby() {
         joinSent.current = true;
         wsClient.send({ type: 'lobby_join', name, lang });
         setIsInLobby(true);
-        setLoading(true);
       }
     };
 
-    // If already connected, send immediately
     if (wsClient.connected) {
       onConnect(true);
     }
 
     const unsub = wsClient.onConnectionChange(onConnect);
-    // Store for cleanup
     return unsub;
   }, []);
 
@@ -35,17 +32,15 @@ export function useLobby() {
     wsClient.send({ type: 'lobby_leave' });
     wsClient.disconnect();
     setIsInLobby(false);
-    setLoading(false);
+    setUsersReceived(false);
     setUsers([]);
     joinSent.current = false;
   }, []);
 
   useEffect(() => {
     const unsubUsers = wsClient.on('lobby_users', (msg: OutboundMessage) => {
-      if (msg.users) {
-        setUsers(msg.users);
-        setLoading(false);
-      }
+      setUsers(msg.users || []);
+      setUsersReceived(true);
     });
 
     const unsubJoin = wsClient.on('lobby_user_join', (msg: OutboundMessage) => {
@@ -81,6 +76,8 @@ export function useLobby() {
       unsubUpdate();
     };
   }, []);
+
+  const loading = isInLobby && !usersReceived;
 
   return { users, isInLobby, loading, joinLobby, leaveLobby };
 }
