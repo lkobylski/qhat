@@ -26,8 +26,12 @@ function buildVideoConstraints(quality: VideoQuality, deviceId?: string): MediaT
 
 export function useMedia() {
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
-  const [videoEnabled, setVideoEnabled] = useState(true);
-  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [videoEnabled, setVideoEnabled] = useState(
+    () => sessionStorage.getItem('videoEnabled') !== 'false'
+  );
+  const [audioEnabled, setAudioEnabled] = useState(
+    () => sessionStorage.getItem('audioEnabled') !== 'false'
+  );
   const [error, setError] = useState<string | null>(null);
   const [quality, setQuality] = useState<VideoQuality>(
     () => (sessionStorage.getItem('videoQuality') as VideoQuality) || 'auto'
@@ -69,6 +73,14 @@ export function useMedia() {
 
       // Enumerate cameras after permission granted (labels available now)
       await enumerateCameras();
+
+      // Apply saved mic/cam preferences
+      const savedAudio = sessionStorage.getItem('audioEnabled') !== 'false';
+      const savedVideo = sessionStorage.getItem('videoEnabled') !== 'false';
+      stream.getAudioTracks().forEach((t) => { t.enabled = savedAudio; });
+      stream.getVideoTracks().forEach((t) => { t.enabled = savedVideo; });
+      setAudioEnabled(savedAudio);
+      setVideoEnabled(savedVideo);
 
       // Track which camera is actually active
       const videoTrack = stream.getVideoTracks()[0];
@@ -138,7 +150,10 @@ export function useMedia() {
     stream.getVideoTracks().forEach((track) => {
       track.enabled = !track.enabled;
     });
-    setVideoEnabled((prev) => !prev);
+    setVideoEnabled((prev) => {
+      sessionStorage.setItem('videoEnabled', String(!prev));
+      return !prev;
+    });
   }, []);
 
   const toggleAudio = useCallback(() => {
@@ -147,7 +162,10 @@ export function useMedia() {
     stream.getAudioTracks().forEach((track) => {
       track.enabled = !track.enabled;
     });
-    setAudioEnabled((prev) => !prev);
+    setAudioEnabled((prev) => {
+      sessionStorage.setItem('audioEnabled', String(!prev));
+      return !prev;
+    });
   }, []);
 
   const stopMedia = useCallback(() => {

@@ -26,6 +26,7 @@ export function PublicLobbyPage() {
   const [showProfile, setShowProfile] = useState(false);
   const [editName, setEditName] = useState(name);
   const [editLang, setEditLang] = useState(lang);
+  const [preCall, setPreCall] = useState(false);
   const navigated = useRef(false);
   const prevCallState = useRef(call.callState);
 
@@ -36,7 +37,6 @@ export function PublicLobbyPage() {
     setLang(editLang);
     sessionStorage.setItem('lobbyName', trimmed);
     sessionStorage.setItem('userLang', editLang);
-    // Re-join lobby with updated profile
     lobby.joinLobby(trimmed, editLang);
     setShowProfile(false);
   };
@@ -58,8 +58,17 @@ export function PublicLobbyPage() {
 
   const handleLeaveLobby = () => {
     lobby.leaveLobby();
+    media.stopMedia();
     sessionStorage.removeItem('fromLobby');
     navigate('/');
+  };
+
+  const handleJoinCall = () => {
+    if (!call.targetRoomCode || navigated.current) return;
+    navigated.current = true;
+    navigate(`/c/${call.targetRoomCode}`, {
+      state: { fromLobby: true, name: name.trim(), lang },
+    });
   };
 
   // Toast notifications for call state changes
@@ -87,15 +96,13 @@ export function PublicLobbyPage() {
     }
   }, [call.callState, call.incomingCaller]);
 
-  // Navigate to room when call is accepted
+  // When call is accepted, show pre-call screen and request camera
   useEffect(() => {
     if (call.callState === 'accepted' && call.targetRoomCode && !navigated.current) {
-      navigated.current = true;
-      navigate(`/c/${call.targetRoomCode}`, {
-        state: { fromLobby: true, name: name.trim(), lang },
-      });
+      setPreCall(true);
+      media.requestPermissions();
     }
-  }, [call.callState, call.targetRoomCode, navigate, name, lang]);
+  }, [call.callState, call.targetRoomCode]);
 
   return (
     <div className="flex h-screen w-screen items-center justify-center bg-slate-800">
@@ -104,7 +111,7 @@ export function PublicLobbyPage() {
         {/* Header */}
         <div className="shrink-0 flex items-center justify-between border-b border-slate-700 px-4 py-3">
           <h1 className="text-lg font-semibold text-white">Public Lobby</h1>
-          {lobby.isInLobby && (
+          {lobby.isInLobby && !preCall && (
             <div className="flex items-center gap-2">
               <button
                 onClick={() => { setEditName(name); setEditLang(lang); setShowProfile((v) => !v); }}
@@ -126,7 +133,7 @@ export function PublicLobbyPage() {
         </div>
 
         {/* Profile settings panel */}
-        {showProfile && (
+        {showProfile && !preCall && (
           <div className="shrink-0 border-b border-slate-700 bg-slate-800 px-4 py-3 space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-slate-300">Profile settings</span>
@@ -168,9 +175,10 @@ export function PublicLobbyPage() {
           </div>
         )}
 
-        {/* Entry form or user list */}
-        {!lobby.isInLobby ? (
+        {/* Pre-call screen: camera preview + join button */}
+        {preCall ? (
           <div className="flex flex-1 flex-col items-center justify-center px-6 gap-5">
+            <p className="text-sm text-slate-400">Check your camera and mic before joining</p>
             <CameraPreview
               stream={media.localStream}
               onRequestCamera={media.requestPermissions}
@@ -182,64 +190,88 @@ export function PublicLobbyPage() {
               onToggleAudio={media.toggleAudio}
               onToggleVideo={media.toggleVideo}
             />
-
-            <form onSubmit={handleJoinLobby} className="w-full max-w-xs space-y-4">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-300">Your name</label>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your name"
-                  maxLength={30}
-                  required
-                  autoFocus
-                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-400 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-300">Your language</label>
-                <LanguageSelect value={lang} onChange={setLang} className="w-full" />
-              </div>
-              <button
-                type="submit"
-                disabled={!name.trim()}
-                className="w-full rounded-xl bg-green-600 px-4 py-3.5 text-base font-semibold text-white shadow-md hover:bg-green-500 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
-              >
-                Enter lobby
-              </button>
-            </form>
+            <button
+              onClick={handleJoinCall}
+              className="w-full max-w-xs rounded-xl bg-green-600 px-4 py-3.5 text-base font-semibold text-white shadow-md hover:bg-green-500 transition-colors"
+            >
+              Join call
+            </button>
           </div>
         ) : (
-          <div className="flex-1 overflow-y-auto px-4 py-3">
-            {lobby.loading ? (
-              <SkeletonUserList count={3} />
-            ) : lobby.users.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-center">
-                <div className="mb-3 text-4xl">👀</div>
-                <p className="text-slate-400">No one else is here yet</p>
-                <p className="mt-1 text-xs text-slate-500">Wait for someone to join...</p>
+          <>
+            {/* Entry form or user list */}
+            {!lobby.isInLobby ? (
+              <div className="flex flex-1 flex-col items-center justify-center px-6 gap-6">
+                <div className="text-center">
+                  <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-green-600 shadow-lg shadow-green-600/30">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="h-7 w-7 text-white">
+                      <path d="M8.25 6.75a3.75 3.75 0 1 1 7.5 0 3.75 3.75 0 0 1-7.5 0ZM15.75 9.75a3 3 0 1 1 6 0 3 3 0 0 1-6 0ZM2.25 9.75a3 3 0 1 1 6 0 3 3 0 0 1-6 0ZM6.31 15.117A6.745 6.745 0 0 1 12 12a6.745 6.745 0 0 1 6.709 7.498.75.75 0 0 1-.372.568A12.696 12.696 0 0 1 12 21.75c-2.305 0-4.47-.612-6.337-1.684a.75.75 0 0 1-.372-.568 6.787 6.787 0 0 1 1.019-4.38Z" />
+                      <path d="M5.082 14.254a8.287 8.287 0 0 0-1.308 5.135 9.687 9.687 0 0 1-1.764-.44l-.115-.04a.563.563 0 0 1-.373-.487l-.01-.121a3.75 3.75 0 0 1 3.57-4.047ZM20.226 19.389a8.287 8.287 0 0 0-1.308-5.135 3.75 3.75 0 0 1 3.57 4.047l-.01.121a.563.563 0 0 1-.373.486l-.115.04c-.567.2-1.156.349-1.764.441Z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-xl font-semibold text-white">Join the lobby</h2>
+                  <p className="mt-1 text-sm text-slate-400">See who's online and start chatting</p>
+                </div>
+
+                <form onSubmit={handleJoinLobby} className="w-full max-w-xs space-y-4">
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-300">Your name</label>
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Enter your name"
+                      maxLength={30}
+                      required
+                      autoFocus
+                      className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-base text-slate-900 placeholder-slate-400 shadow-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1.5 block text-sm font-medium text-slate-300">Your language</label>
+                    <LanguageSelect value={lang} onChange={setLang} className="w-full" />
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={!name.trim()}
+                    className="w-full rounded-xl bg-green-600 px-4 py-3.5 text-base font-semibold text-white shadow-md hover:bg-green-500 disabled:bg-slate-600 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Enter lobby
+                  </button>
+                </form>
               </div>
             ) : (
-              <div className="space-y-2">
-                <p className="text-xs text-slate-500 px-1">
-                  {lobby.users.length} user{lobby.users.length !== 1 ? 's' : ''} online
-                </p>
-                {lobby.users.map((user) => (
-                  <LobbyUserCard
-                    key={user.id}
-                    user={user}
-                    onCall={handleCall}
-                    disabled={call.callState !== 'idle'}
-                  />
-                ))}
+              <div className="flex-1 overflow-y-auto px-4 py-3">
+                {lobby.loading ? (
+                  <SkeletonUserList count={3} />
+                ) : lobby.users.length === 0 ? (
+                  <div className="flex h-full flex-col items-center justify-center text-center">
+                    <div className="mb-3 text-4xl">👀</div>
+                    <p className="text-slate-400">No one else is here yet</p>
+                    <p className="mt-1 text-xs text-slate-500">Wait for someone to join...</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-xs text-slate-500 px-1">
+                      {lobby.users.length} user{lobby.users.length !== 1 ? 's' : ''} online
+                    </p>
+                    {lobby.users.map((user) => (
+                      <LobbyUserCard
+                        key={user.id}
+                        user={user}
+                        onCall={handleCall}
+                        disabled={call.callState !== 'idle'}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
-          </div>
+          </>
         )}
 
         {/* Call overlays */}
-        {call.callState === 'incoming' && call.incomingCaller && (
+        {!preCall && call.callState === 'incoming' && call.incomingCaller && (
           <IncomingCallModal
             callerName={call.incomingCaller.name}
             callerLang={call.incomingCaller.lang}
@@ -248,7 +280,7 @@ export function PublicLobbyPage() {
           />
         )}
 
-        {call.callState === 'calling' && (
+        {!preCall && call.callState === 'calling' && (
           <CallingOverlay
             targetName={callingUserName}
             onCancel={call.cancelCall}
