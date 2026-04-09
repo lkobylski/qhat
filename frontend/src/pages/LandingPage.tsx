@@ -159,9 +159,15 @@ export function LandingPage() {
         )}
 
         {/* Footer */}
-        <p className="text-xs text-slate-600">
-          No account needed. Rooms are temporary.
-        </p>
+        <div className="text-xs text-slate-600 space-y-1">
+          <p>No account needed. Rooms are temporary.</p>
+          <button
+            onClick={() => navigate('/privacy')}
+            className="text-slate-500 hover:text-slate-300 underline transition-colors"
+          >
+            Privacy Policy
+          </button>
+        </div>
       </div>
     </div>
   );
