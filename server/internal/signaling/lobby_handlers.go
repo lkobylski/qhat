@@ -160,16 +160,16 @@ func (h *Hub) handleCallAccept(client *ws.Client, msg *ws.InboundMessage) {
 		h.broadcastToLobby(&ws.OutboundMessage{Type: ws.TypeLobbyUpdate, User: &dto}, "")
 	}
 
-	// Create a room for the call
-	roomCode := uuid.New().String()[:6]
-	h.rooms.GetOrCreate(roomCode)
+	// Create a room for the call (full UUID as room ID, first 6 chars as shareable code)
+	roomID := uuid.New().String()
+	r, _ := h.rooms.GetOrCreate(roomID)
 
-	log.Printf("[lobby] call accepted: %s <-> %s, room %s", msg.CallerID, client.ID, roomCode)
+	log.Printf("[lobby] call accepted: %s <-> %s, room %s (code %s)", msg.CallerID, client.ID, roomID, r.Code)
 
-	// Send call_start to both
+	// Send call_start to both — use room code for the shareable link
 	startMsg := &ws.OutboundMessage{
 		Type:     ws.TypeCallStart,
-		RoomCode: roomCode,
+		RoomCode: r.Code,
 	}
 
 	h.mu.RLock()

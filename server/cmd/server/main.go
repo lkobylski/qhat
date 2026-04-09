@@ -45,7 +45,7 @@ func main() {
 	rm.StartCleanup(5 * time.Minute)
 
 	mux := http.NewServeMux()
-	mux.Handle("/ws", ws.NewHandler(hub, cfg.AllowedOrigins))
+	mux.Handle("/ws", ratelimit.IPMiddleware(rl, ws.NewHandler(hub, cfg.AllowedOrigins)))
 	mux.HandleFunc("/health", healthHandler)
 	mux.HandleFunc("/api/room/code/", roomCodeHandler(rm))
 	mux.HandleFunc("/api/debug", debugHandler(cfg, rm, lobbyMgr))

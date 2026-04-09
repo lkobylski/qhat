@@ -159,6 +159,12 @@ func (h *Hub) handleJoin(client *ws.Client, msg *ws.InboundMessage) {
 
 	_, reconnected, err := r.Add(participant)
 	if err != nil {
+		// Check failed join rate limit by IP
+		if !h.rateLimiter.Allow(ratelimit.LimitFailedJoin, client.RemoteAddr) {
+			client.Send(&ws.OutboundMessage{Type: ws.TypeError, Error: "too many failed join attempts"})
+			client.Close()
+			return
+		}
 		client.Send(&ws.OutboundMessage{Type: ws.TypeRoomFull})
 		client.Close()
 		return

@@ -8,14 +8,16 @@ import (
 
 // Manager handles creation, lookup, and cleanup of rooms.
 type Manager struct {
-	rooms map[string]*Room
-	mu    sync.RWMutex
+	rooms    map[string]*Room  // room ID → *Room
+	byCode   map[string]string // room code → room ID
+	mu       sync.RWMutex
 }
 
 // NewManager creates an empty room manager.
 func NewManager() *Manager {
 	return &Manager{
-		rooms: make(map[string]*Room),
+		rooms:  make(map[string]*Room),
+		byCode: make(map[string]string),
 	}
 }
 
@@ -31,6 +33,7 @@ func (m *Manager) GetOrCreate(roomID string) (*Room, bool) {
 
 	r := NewRoom(roomID)
 	m.rooms[roomID] = r
+	m.byCode[r.Code] = roomID
 	return r, true
 }
 
@@ -42,15 +45,13 @@ func (m *Manager) Get(roomID string) *Room {
 	return m.rooms[roomID]
 }
 
-// GetByCode finds a room whose Code matches the given string.
+// GetByCode finds a room whose Code matches the given string. O(1) lookup.
 func (m *Manager) GetByCode(code string) *Room {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	for _, r := range m.rooms {
-		if r.Code == code {
-			return r
-		}
+	if roomID, ok := m.byCode[code]; ok {
+		return m.rooms[roomID]
 	}
 	return nil
 }
@@ -60,6 +61,9 @@ func (m *Manager) Delete(roomID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
+	if r, ok := m.rooms[roomID]; ok {
+		delete(m.byCode, r.Code)
+	}
 	delete(m.rooms, roomID)
 }
 
@@ -82,6 +86,7 @@ func (m *Manager) cleanupEmpty() {
 	for id, r := range m.rooms {
 		if r.IsEmpty() {
 			log.Printf("cleanup: removing empty room %s", id)
+			delete(m.byCode, r.Code)
 			delete(m.rooms, id)
 		}
 	}

@@ -2,12 +2,30 @@ package ws
 
 import (
 	"log"
+	"net"
 	"net/http"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
+
+// extractClientIP returns the client IP from request headers or remote address.
+func extractClientIP(r *http.Request) string {
+	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+		if parts := strings.SplitN(xff, ",", 2); len(parts) > 0 {
+			return strings.TrimSpace(parts[0])
+		}
+	}
+	if xri := r.Header.Get("X-Real-IP"); xri != "" {
+		return xri
+	}
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		return r.RemoteAddr
+	}
+	return host
+}
 
 // NewHandler returns an HTTP handler that upgrades connections to WebSocket
 // and creates a Client for each connection.
@@ -45,7 +63,8 @@ func NewHandler(msgHandler MessageHandler, allowedOrigins []string) http.Handler
 		}
 
 		clientID := uuid.New().String()
-		client := NewClient(clientID, conn, msgHandler)
+		remoteAddr := extractClientIP(r)
+		client := NewClient(clientID, conn, msgHandler, remoteAddr)
 		if reg, ok := msgHandler.(interface{ Register(c *Client) }); ok {
 			reg.Register(client)
 		}

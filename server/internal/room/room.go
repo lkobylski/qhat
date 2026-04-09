@@ -175,10 +175,17 @@ func (r *Room) ParticipantCount() int {
 	return count
 }
 
-// AddChatMessage appends a message to the room history.
+const maxChatHistory = 500
+
+// AddChatMessage appends a message to the room history, capping at maxChatHistory.
 func (r *Room) AddChatMessage(msg ChatMessage) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
+	if len(r.History) >= maxChatHistory {
+		// Drop oldest messages, keep last half
+		copy(r.History, r.History[maxChatHistory/2:])
+		r.History = r.History[:maxChatHistory/2]
+	}
 	r.History = append(r.History, msg)
 }

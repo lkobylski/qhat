@@ -25,21 +25,23 @@ type MessageHandler interface {
 
 // Client wraps a single WebSocket connection.
 type Client struct {
-	ID      string
-	RoomID  string
-	conn    *websocket.Conn
-	send    chan []byte
-	handler MessageHandler
-	once    sync.Once
+	ID         string
+	RoomID     string
+	RemoteAddr string // client IP for rate limiting
+	conn       *websocket.Conn
+	send       chan []byte
+	handler    MessageHandler
+	once       sync.Once
 }
 
 // NewClient creates a client and starts its read/write goroutines.
-func NewClient(id string, conn *websocket.Conn, handler MessageHandler) *Client {
+func NewClient(id string, conn *websocket.Conn, handler MessageHandler, remoteAddr string) *Client {
 	c := &Client{
-		ID:      id,
-		conn:    conn,
-		send:    make(chan []byte, sendBufSize),
-		handler: handler,
+		ID:         id,
+		conn:       conn,
+		send:       make(chan []byte, sendBufSize),
+		handler:    handler,
+		RemoteAddr: remoteAddr,
 	}
 	go c.writePump()
 	go c.readPump()
