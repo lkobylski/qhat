@@ -87,6 +87,8 @@ func (h *Hub) Dispatch(client *ws.Client, raw []byte) {
 		h.handleLobbyJoin(client, &msg)
 	case ws.TypeLobbyLeave:
 		h.handleLobbyLeave(client)
+	case ws.TypeLobbyDM:
+		h.handleLobbyDM(client, &msg)
 	case ws.TypeCallRequest:
 		h.handleCallRequest(client, &msg)
 	case ws.TypeCallAccept:

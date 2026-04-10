@@ -27,6 +27,9 @@ const (
 	TypeLobbyUserLeft = "lobby_user_left"
 	TypeLobbyUpdate   = "lobby_update"
 
+	// Lobby direct message
+	TypeLobbyDM = "lobby_dm"
+
 	// Call flow message types
 	TypeCallRequest   = "call_request"
 	TypeCallIncoming  = "call_incoming"

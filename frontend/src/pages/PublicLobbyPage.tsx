@@ -12,6 +12,7 @@ import { CameraPreview } from '../components/lobby/CameraPreview';
 import { LobbyUserCard } from '../components/public-lobby/LobbyUserCard';
 import { IncomingCallModal } from '../components/public-lobby/IncomingCallModal';
 import { CallingOverlay } from '../components/public-lobby/CallingOverlay';
+import { LobbyChat } from '../components/public-lobby/LobbyChat';
 
 export function PublicLobbyPage() {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ export function PublicLobbyPage() {
   const [editName, setEditName] = useState(name);
   const [editLang, setEditLang] = useState(lang);
   const [preCall, setPreCall] = useState(false);
+  const [chatUserId, setChatUserId] = useState<string | null>(null);
   const navigated = useRef(false);
   const prevCallState = useRef(call.callState);
 
@@ -240,6 +242,20 @@ export function PublicLobbyPage() {
                   </button>
                 </form>
               </div>
+            ) : chatUserId && lobby.users.find((u) => u.id === chatUserId) ? (
+              <LobbyChat
+                user={lobby.users.find((u) => u.id === chatUserId)!}
+                myId={lobby.myId}
+                myName={name}
+                messages={lobby.dmMessages[chatUserId] || []}
+                onAddMessage={(msg) => lobby.addDmMessage(chatUserId, msg)}
+                onUpdateMessage={(original, updates) => lobby.updateLastDm(chatUserId, original, updates)}
+                onClose={() => { setChatUserId(null); lobby.setOpenChat(null); }}
+                onCall={() => {
+                  setChatUserId(null);
+                  handleCall(chatUserId);
+                }}
+              />
             ) : (
               <div className="flex-1 overflow-y-auto px-4 py-3">
                 {lobby.loading ? (
@@ -260,7 +276,9 @@ export function PublicLobbyPage() {
                         key={user.id}
                         user={user}
                         onCall={handleCall}
+                        onClick={(id) => { setChatUserId(id); lobby.setOpenChat(id); }}
                         disabled={call.callState !== 'idle'}
+                        unreadCount={lobby.unreadDMs[user.id]}
                       />
                     ))}
                   </div>

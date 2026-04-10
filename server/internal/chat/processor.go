@@ -16,6 +16,11 @@ type Processor struct {
 	translator translation.Translator
 }
 
+// Translator returns the underlying translator for direct use (e.g., lobby DMs).
+func (p *Processor) Translator() translation.Translator {
+	return p.translator
+}
+
 // NewProcessor creates a chat processor with the given translator.
 func NewProcessor(t translation.Translator) *Processor {
 	return &Processor{translator: t}

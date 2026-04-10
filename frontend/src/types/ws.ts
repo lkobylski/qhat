@@ -16,6 +16,7 @@ export type MessageType =
   | 'lobby_join'
   | 'lobby_leave'
   | 'lobby_users'
+  | 'lobby_dm'
   | 'lobby_user_join'
   | 'lobby_user_left'
   | 'lobby_update'

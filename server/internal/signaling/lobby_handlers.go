@@ -1,6 +1,7 @@
 package signaling
 
 import (
+	"context"
 	"log"
 	"time"
 
@@ -56,8 +57,9 @@ func (h *Hub) handleLobbyJoin(client *ws.Client, msg *ws.InboundMessage) {
 		dtos = append(dtos, toLobbyDTO(&u))
 	}
 	client.Send(&ws.OutboundMessage{
-		Type:  ws.TypeLobbyUsers,
-		Users: dtos,
+		Type:     ws.TypeLobbyUsers,
+		Users:    dtos,
+		CallerID: client.ID, // send client's own ID so frontend knows it
 	})
 
 	// Broadcast join to all other lobby clients
@@ -248,6 +250,73 @@ func (h *Hub) cancelPendingCall(callerID, targetID string) {
 	}
 
 	log.Printf("[lobby] call cancelled: %s -> %s", callerID, targetID)
+}
+
+func (h *Hub) handleLobbyDM(client *ws.Client, msg *ws.InboundMessage) {
+	if msg.TargetID == "" || msg.Text == "" {
+		return
+	}
+
+	if len([]rune(msg.Text)) > maxMessageLength {
+		client.Send(&ws.OutboundMessage{Type: ws.TypeError, Error: "message too long"})
+		return
+	}
+
+	sender := h.lobby.Get(client.ID)
+	if sender == nil {
+		return
+	}
+
+	target := h.lobby.Get(msg.TargetID)
+	if target == nil {
+		return
+	}
+
+	ts := time.Now().Unix()
+
+	// Translate if different languages
+	translated := msg.Text
+	translationFailed := false
+	if sender.Lang != target.Lang {
+		result, err := h.chatProc.Translator().Translate(context.Background(), msg.Text, sender.Lang, target.Lang)
+		if err != nil {
+			log.Printf("lobby DM translation failed: %v", err)
+			translationFailed = true
+		} else {
+			translated = result
+		}
+	}
+
+	// Send to target
+	h.mu.RLock()
+	targetClient := h.clients[msg.TargetID]
+	h.mu.RUnlock()
+	if targetClient != nil {
+		targetClient.Send(&ws.OutboundMessage{
+			Type:              ws.TypeLobbyDM,
+			From:              sender.Name,
+			CallerID:          client.ID,
+			Original:          msg.Text,
+			Translated:        translated,
+			LangFrom:          sender.Lang,
+			LangTo:            target.Lang,
+			Timestamp:         ts,
+			TranslationFailed: translationFailed,
+		})
+	}
+
+	// Echo back to sender with translation
+	client.Send(&ws.OutboundMessage{
+		Type:              ws.TypeLobbyDM,
+		From:              sender.Name,
+		CallerID:          client.ID,
+		Original:          msg.Text,
+		Translated:        translated,
+		LangFrom:          sender.Lang,
+		LangTo:            target.Lang,
+		Timestamp:         ts,
+		TranslationFailed: translationFailed,
+	})
 }
 
 func (h *Hub) removeLobbyClient(clientID string) {

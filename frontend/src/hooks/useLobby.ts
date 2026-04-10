@@ -5,10 +5,28 @@ import { playMessageSound } from '../lib/sounds';
 import { incrementUnread } from '../lib/titleBadge';
 import type { LobbyUser, OutboundMessage } from '../types/ws';
 
+export interface DmMessage {
+  id: number;
+  from: string;
+  senderId: string;
+  original: string;
+  translated: string;
+  isMine: boolean;
+  translationFailed?: boolean;
+  ts: number;
+}
+
+let dmMsgId = 0;
+
 export function useLobby() {
   const [users, setUsers] = useState<LobbyUser[]>([]);
   const [isInLobby, setIsInLobby] = useState(false);
   const [usersReceived, setUsersReceived] = useState(false);
+  const [myId, setMyId] = useState('');
+  const myIdRef = useRef('');
+  const [unreadDMs, setUnreadDMs] = useState<Record<string, number>>({}); // userId → count
+  const [dmMessages, setDmMessages] = useState<Record<string, DmMessage[]>>({}); // peerId → messages
+  const openChatRef = useRef<string | null>(null); // currently open chat userId
   const joinSent = useRef(false);
 
   const joinLobby = useCallback((name: string, lang: string) => {
@@ -47,6 +65,10 @@ export function useLobby() {
     const unsubUsers = wsClient.on('lobby_users', (msg: OutboundMessage) => {
       setUsers(msg.users || []);
       setUsersReceived(true);
+      if (msg.callerId) {
+        setMyId(msg.callerId);
+        myIdRef.current = msg.callerId;
+      }
     });
 
     const unsubJoin = wsClient.on('lobby_user_join', (msg: OutboundMessage) => {
@@ -84,15 +106,93 @@ export function useLobby() {
       }
     });
 
+    // Track ALL DMs — store messages and manage unread badges
+    const unsubDM = wsClient.on('lobby_dm', (msg: OutboundMessage) => {
+      const senderId = msg.callerId || '';
+      const isMine = senderId === myIdRef.current;
+
+      // Determine the peer ID (the other person in this conversation)
+      // If I sent it, peer is the target (we don't have targetId in response, use from/callerId logic)
+      // For echoes of my messages, we need to figure out the peer differently
+      // The server sends lobby_dm to both sender (echo) and receiver
+      // We'll key messages by peer ID
+
+      const dmMsg: DmMessage = {
+        id: ++dmMsgId,
+        from: msg.from || '',
+        senderId,
+        original: msg.original || '',
+        translated: msg.translated || msg.original || '',
+        isMine,
+        translationFailed: msg.translationFailed,
+        ts: msg.ts || Math.floor(Date.now() / 1000),
+      };
+
+      if (isMine) {
+        // Echo of my own message — store under the conversation partner
+        // We need to find who we sent it to. The server echoes back with same fields.
+        // We'll skip storing echoes here — LobbyChat handles optimistic add + echo update
+        return;
+      }
+
+      // Message from someone else — store under their ID
+      setDmMessages((prev) => ({
+        ...prev,
+        [senderId]: [...(prev[senderId] || []), dmMsg],
+      }));
+
+      // Track unread if chat not open with this user
+      if (senderId !== openChatRef.current) {
+        setUnreadDMs((prev) => ({
+          ...prev,
+          [senderId]: (prev[senderId] || 0) + 1,
+        }));
+        playMessageSound();
+        incrementUnread();
+      }
+    });
+
     return () => {
       unsubUsers();
       unsubJoin();
       unsubLeft();
       unsubUpdate();
+      unsubDM();
     };
+  }, []);
+
+  const setOpenChat = useCallback((userId: string | null) => {
+    openChatRef.current = userId;
+    if (userId) {
+      // Clear unread for this user when opening chat
+      setUnreadDMs((prev) => {
+        const next = { ...prev };
+        delete next[userId];
+        return next;
+      });
+    }
+  }, []);
+
+  const addDmMessage = useCallback((peerId: string, msg: DmMessage) => {
+    setDmMessages((prev) => ({
+      ...prev,
+      [peerId]: [...(prev[peerId] || []), msg],
+    }));
+  }, []);
+
+  const updateLastDm = useCallback((peerId: string, original: string, updates: Partial<DmMessage>) => {
+    setDmMessages((prev) => {
+      const msgs = prev[peerId];
+      if (!msgs) return prev;
+      const idx = msgs.findLastIndex((m) => m.isMine && m.original === original);
+      if (idx === -1) return prev;
+      const updated = [...msgs];
+      updated[idx] = { ...updated[idx], ...updates };
+      return { ...prev, [peerId]: updated };
+    });
   }, []);
 
   const loading = isInLobby && !usersReceived;
 
-  return { users, isInLobby, loading, joinLobby, leaveLobby };
+  return { users, isInLobby, loading, myId, unreadDMs, dmMessages, setOpenChat, addDmMessage, updateLastDm, joinLobby, leaveLobby };
 }
