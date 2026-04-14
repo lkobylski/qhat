@@ -10,10 +10,21 @@ interface CallerInfo {
   lang: string;
 }
 
+export interface MissedCall {
+  id: number;
+  name: string;
+  lang: string;
+  time: string;
+}
+
+let missedId = 0;
+
 export function useCall() {
   const [callState, setCallState] = useState<CallState>('idle');
   const [incomingCaller, setIncomingCaller] = useState<CallerInfo | null>(null);
   const [targetRoomCode, setTargetRoomCode] = useState<string | null>(null);
+  const [missedCalls, setMissedCalls] = useState<MissedCall[]>([]);
+  const incomingCallerRef = useRef<CallerInfo | null>(null);
   const autoDeclineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const callUser = useCallback((targetId: string) => {
@@ -54,16 +65,24 @@ export function useCall() {
 
   useEffect(() => {
     const unsubIncoming = wsClient.on('call_incoming', (msg: OutboundMessage) => {
-      setIncomingCaller({
+      const caller = {
         id: msg.callerId || '',
         name: msg.callerName || 'Unknown',
         lang: msg.callerLang || '',
-      });
+      };
+      setIncomingCaller(caller);
+      incomingCallerRef.current = caller;
       setCallState('incoming');
 
-      // Auto-decline after 30s
+      // Auto-decline after 30s → becomes missed call
       autoDeclineTimer.current = setTimeout(() => {
         wsClient.send({ type: 'call_decline', callerId: msg.callerId });
+        setMissedCalls((prev) => [{
+          id: ++missedId,
+          name: msg.callerName || 'Unknown',
+          lang: msg.callerLang || '',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }, ...prev].slice(0, 10));
         setCallState('idle');
         setIncomingCaller(null);
       }, 30000);
@@ -73,7 +92,16 @@ export function useCall() {
       setCallState('idle');
     });
 
-    const unsubCancelled = wsClient.on('call_cancelled', () => {
+    const unsubCancelled = wsClient.on('call_cancelled', (msg: OutboundMessage) => {
+      // Caller cancelled → missed call
+      if (incomingCallerRef.current) {
+        setMissedCalls((prev) => [{
+          id: ++missedId,
+          name: incomingCallerRef.current?.name || msg.callerName || 'Unknown',
+          lang: incomingCallerRef.current?.lang || msg.callerLang || '',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        }, ...prev].slice(0, 10));
+      }
       setCallState('idle');
       setIncomingCaller(null);
       if (autoDeclineTimer.current) {
@@ -98,14 +126,18 @@ export function useCall() {
     };
   }, []);
 
+  const clearMissedCalls = useCallback(() => setMissedCalls([]), []);
+
   return {
     callState,
     incomingCaller,
     targetRoomCode,
+    missedCalls,
     callUser,
     acceptCall,
     declineCall,
     cancelCall,
+    clearMissedCalls,
     reset,
   };
 }

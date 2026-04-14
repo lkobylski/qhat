@@ -28,8 +28,12 @@ export function useLobby() {
   const [dmMessages, setDmMessages] = useState<Record<string, DmMessage[]>>({}); // peerId → messages
   const openChatRef = useRef<string | null>(null); // currently open chat userId
   const joinSent = useRef(false);
+  const lobbyNameRef = useRef('');
+  const lobbyLangRef = useRef('');
 
   const joinLobby = useCallback((name: string, lang: string) => {
+    lobbyNameRef.current = name;
+    lobbyLangRef.current = lang;
     wsClient.connect(WS_URL);
 
     const doJoin = () => {
@@ -51,6 +55,18 @@ export function useLobby() {
     });
     return unsub;
   }, []);
+
+  // Auto re-join lobby after WS reconnect (e.g., after sleep/wake)
+  // Don't reset usersReceived — keep showing current list, it'll be replaced when lobby_users arrives
+  useEffect(() => {
+    const unsub = wsClient.onConnectionChange((connected) => {
+      if (connected && isInLobby && lobbyNameRef.current) {
+        console.log('[lobby] Reconnected, re-joining lobby...');
+        wsClient.send({ type: 'lobby_join', name: lobbyNameRef.current, lang: lobbyLangRef.current });
+      }
+    });
+    return unsub;
+  }, [isInLobby]);
 
   const leaveLobby = useCallback(() => {
     wsClient.send({ type: 'lobby_leave' });
@@ -75,18 +91,18 @@ export function useLobby() {
       if (msg.user) {
         const newUser = msg.user;
         setUsers((prev) => {
-          // Upsert: replace if exists (same id, status might have changed), add if new
           const exists = prev.some((u) => u.id === newUser.id);
           if (exists) {
+            // Same ID = reconnect, just update silently
             return prev.map((u) => (u.id === newUser.id ? newUser : u));
+          }
+          // New user — notify
+          if (document.hidden) {
+            playMessageSound();
+            incrementUnread();
           }
           return [...prev, newUser];
         });
-        // Notify when tab is not focused
-        if (document.hidden) {
-          playMessageSound();
-          incrementUnread();
-        }
       }
     });
 

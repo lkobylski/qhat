@@ -258,6 +258,29 @@ export function PublicLobbyPage() {
               />
             ) : (
               <div className="flex-1 overflow-y-auto px-4 py-3">
+                {/* Missed calls */}
+                {call.missedCalls.length > 0 && (
+                  <div className="mb-3 rounded-xl bg-red-500/10 border border-red-500/20 p-3">
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-xs font-medium text-red-400">
+                        Missed calls ({call.missedCalls.length})
+                      </span>
+                      <button
+                        onClick={call.clearMissedCalls}
+                        className="text-[10px] text-red-400/60 hover:text-red-400 transition-colors"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                    {call.missedCalls.map((mc) => (
+                      <div key={mc.id} className="flex items-center gap-2 py-1">
+                        <span className="text-xs text-red-300">{mc.name}</span>
+                        <span className="text-[10px] text-red-400/50">{mc.lang}</span>
+                        <span className="ml-auto text-[10px] text-red-400/40">{mc.time}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {lobby.loading ? (
                   <SkeletonUserList count={3} />
                 ) : lobby.users.length === 0 ? (

@@ -21,9 +21,13 @@ func (h *Hub) handleLobbyJoin(client *ws.Client, msg *ws.InboundMessage) {
 		return
 	}
 
-	// Remove any stale entries for same name (e.g., returning from a call with old clientID)
+	// Check if this is a reconnect (same client ID already in lobby)
+	existing := h.lobby.Get(client.ID)
+	isReconnect := existing != nil
+
+	// Remove any stale entries for same name with different ID
 	h.lobby.Reconnect(client.ID, msg.Name)
-	// Also clean lobbyClients map for removed entries
+	// Clean lobbyClients map for removed entries
 	h.mu.Lock()
 	for id := range h.lobbyClients {
 		if h.lobby.Get(id) == nil && id != client.ID {
@@ -45,29 +49,35 @@ func (h *Hub) handleLobbyJoin(client *ws.Client, msg *ws.InboundMessage) {
 	h.lobbyClients[client.ID] = true
 	h.mu.Unlock()
 
-	log.Printf("[lobby] %s (%s) joined lobby", client.ID, msg.Name)
+	if isReconnect {
+		log.Printf("[lobby] %s (%s) reconnected to lobby", client.ID, msg.Name)
+	} else {
+		log.Printf("[lobby] %s (%s) joined lobby", client.ID, msg.Name)
+	}
 
-	// Send full user list to the joining client
+	// Always send full user list to the joining/reconnecting client
 	users := h.lobby.List()
 	dtos := make([]ws.LobbyUserDTO, 0, len(users))
 	for _, u := range users {
 		if u.ClientID == client.ID {
-			continue // don't include self
+			continue
 		}
 		dtos = append(dtos, toLobbyDTO(&u))
 	}
 	client.Send(&ws.OutboundMessage{
 		Type:     ws.TypeLobbyUsers,
 		Users:    dtos,
-		CallerID: client.ID, // send client's own ID so frontend knows it
+		CallerID: client.ID,
 	})
 
-	// Broadcast join to all other lobby clients
-	dto := toLobbyDTO(user)
-	h.broadcastToLobby(&ws.OutboundMessage{
-		Type: ws.TypeLobbyUserJoin,
-		User: &dto,
-	}, client.ID)
+	// Only broadcast to others if this is a NEW user, not a reconnect
+	if !isReconnect {
+		dto := toLobbyDTO(user)
+		h.broadcastToLobby(&ws.OutboundMessage{
+			Type: ws.TypeLobbyUserJoin,
+			User: &dto,
+		}, client.ID)
+	}
 }
 
 func (h *Hub) handleLobbyLeave(client *ws.Client) {
@@ -374,30 +384,38 @@ func (h *Hub) handleLobbyDisconnect(clientID string) {
 		return
 	}
 
-	// Mark as disconnected with grace period
+	// Mark as disconnected with grace period — DON'T broadcast yet.
+	// If user reconnects within grace period, no one notices they left.
 	h.lobby.MarkDisconnected(clientID)
 	log.Printf("[lobby] %s disconnected (grace %s)", clientID, lobbyGrace)
 
-	// Broadcast leave immediately (user appears offline)
-	user := h.lobby.Get(clientID)
-	if user != nil {
+	// After grace period, if still disconnected → broadcast leave + cleanup
+	go func() {
+		time.Sleep(lobbyGrace)
+
+		user := h.lobby.Get(clientID)
+		if user == nil {
+			// Already removed (reconnected and replaced)
+			return
+		}
+		if !user.Disconnected {
+			// Reconnected within grace period
+			return
+		}
+
+		// Still disconnected after grace — actually remove
+		h.lobby.Remove(clientID)
+		h.mu.Lock()
+		delete(h.lobbyClients, clientID)
+		h.mu.Unlock()
+
+		log.Printf("[lobby] %s removed after grace period", clientID)
+
 		dto := toLobbyDTO(user)
 		h.broadcastToLobby(&ws.OutboundMessage{
 			Type: ws.TypeLobbyUserLeft,
 			User: &dto,
-		}, clientID)
-	}
-
-	// Cleanup after grace period
-	go func() {
-		time.Sleep(lobbyGrace)
-		removed := h.lobby.CleanupDisconnected(lobbyGrace)
-		for _, id := range removed {
-			h.mu.Lock()
-			delete(h.lobbyClients, id)
-			h.mu.Unlock()
-			log.Printf("[lobby] %s removed after grace period", id)
-		}
+		}, "")
 	}()
 }
 

@@ -55,10 +55,14 @@ func (h *Hub) Register(client *ws.Client) {
 
 // Dispatch routes an inbound message to the appropriate handler.
 func (h *Hub) Dispatch(client *ws.Client, raw []byte) {
+	// Ignore non-JSON messages (e.g., heartbeat "ping" from frontend)
+	if len(raw) == 0 || raw[0] != '{' {
+		return
+	}
+
 	var msg ws.InboundMessage
 	if err := json.Unmarshal(raw, &msg); err != nil {
 		log.Printf("invalid message from %s: %v", client.ID, err)
-		client.Send(&ws.OutboundMessage{Type: ws.TypeError, Error: "invalid message format"})
 		return
 	}
 

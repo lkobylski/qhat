@@ -62,7 +62,11 @@ func NewHandler(msgHandler MessageHandler, allowedOrigins []string) http.Handler
 			return
 		}
 
-		clientID := uuid.New().String()
+		// Use client-provided ID if present (stable across reconnects)
+		clientID := r.URL.Query().Get("id")
+		if clientID == "" {
+			clientID = uuid.New().String()
+		}
 		remoteAddr := extractClientIP(r)
 		client := NewClient(clientID, conn, msgHandler, remoteAddr)
 		if reg, ok := msgHandler.(interface{ Register(c *Client) }); ok {
