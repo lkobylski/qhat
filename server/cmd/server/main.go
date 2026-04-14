@@ -43,6 +43,7 @@ func main() {
 	hub := signaling.NewHub(rm, cfg, chatProc, rl, lobbyMgr)
 
 	rm.StartCleanup(5 * time.Minute)
+	hub.StartOfflineCleanup(5 * time.Minute)
 
 	mux := http.NewServeMux()
 	mux.Handle("/ws", ws.NewHandler(hub, cfg.AllowedOrigins))

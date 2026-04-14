@@ -291,19 +291,44 @@ export function PublicLobbyPage() {
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    <p className="text-xs text-slate-500 px-1">
-                      {lobby.users.length} user{lobby.users.length !== 1 ? 's' : ''} online
-                    </p>
-                    {lobby.users.map((user) => (
-                      <LobbyUserCard
-                        key={user.id}
-                        user={user}
-                        onCall={handleCall}
-                        onClick={(id) => { setChatUserId(id); lobby.setOpenChat(id); }}
-                        disabled={call.callState !== 'idle'}
-                        unreadCount={lobby.unreadDMs[user.id]}
-                      />
-                    ))}
+                    {(() => {
+                      const online = lobby.users.filter((u) => u.status !== 'offline');
+                      const offline = lobby.users.filter((u) => u.status === 'offline');
+                      return (
+                        <>
+                          <p className="text-xs text-slate-500 px-1">
+                            {online.length} online{offline.length > 0 ? `, ${offline.length} recently seen` : ''}
+                          </p>
+                          {online.map((user) => (
+                            <LobbyUserCard
+                              key={user.id}
+                              user={user}
+                              onCall={handleCall}
+                              onClick={(id) => { setChatUserId(id); lobby.setOpenChat(id); }}
+                              disabled={call.callState !== 'idle'}
+                              unreadCount={lobby.unreadDMs[user.id]}
+                            />
+                          ))}
+                          {offline.length > 0 && online.length > 0 && (
+                            <div className="flex items-center gap-2 px-1 pt-2">
+                              <div className="flex-1 border-t border-slate-700/50" />
+                              <span className="text-[10px] text-slate-600">Recently seen</span>
+                              <div className="flex-1 border-t border-slate-700/50" />
+                            </div>
+                          )}
+                          {offline.map((user) => (
+                            <LobbyUserCard
+                              key={user.id}
+                              user={user}
+                              onCall={handleCall}
+                              onClick={(id) => { setChatUserId(id); lobby.setOpenChat(id); }}
+                              disabled={true}
+                              unreadCount={lobby.unreadDMs[user.id]}
+                            />
+                          ))}
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

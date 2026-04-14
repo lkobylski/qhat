@@ -117,7 +117,11 @@ export function useLobby() {
       if (msg.user) {
         const updated = msg.user;
         setUsers((prev) =>
-          prev.map((u) => (u.id === updated.id ? { ...u, status: updated.status } : u))
+          prev.map((u) =>
+            u.id === updated.id
+              ? { ...u, status: updated.status, lastSeen: updated.lastSeen }
+              : u
+          )
         );
       }
     });

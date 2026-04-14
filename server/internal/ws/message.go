@@ -81,10 +81,11 @@ type OutboundMessage struct {
 
 // LobbyUserDTO is the client-facing representation of a lobby user.
 type LobbyUserDTO struct {
-	ID     string `json:"id"`
-	Name   string `json:"name"`
-	Lang   string `json:"lang"`
-	Status string `json:"status"` // "available" or "in_call"
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Lang     string `json:"lang"`
+	Status   string `json:"status"`             // "available", "in_call", or "offline"
+	LastSeen int64  `json:"lastSeen,omitempty"` // unix timestamp, set when offline
 }
 
 // ICEServer holds STUN/TURN server configuration sent to clients.

@@ -9,26 +9,48 @@ interface LobbyUserCardProps {
   unreadCount?: number;
 }
 
+function formatLastSeen(ts?: number): string {
+  if (!ts) return 'offline';
+  const diff = Math.floor((Date.now() / 1000) - ts);
+  if (diff < 60) return 'just now';
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
 export function LobbyUserCard({ user, onCall, onClick, disabled, unreadCount }: LobbyUserCardProps) {
   const langName = LANGUAGES.find((l) => l.code === user.lang)?.name || user.lang;
   const isAvailable = user.status === 'available';
+  const isOffline = user.status === 'offline';
 
   return (
     <div
       onClick={() => onClick(user.id)}
-      className="flex items-center gap-3 rounded-xl bg-slate-800 px-4 py-3 cursor-pointer hover:bg-slate-750 hover:ring-1 hover:ring-slate-600 transition-all"
+      className={`flex items-center gap-3 rounded-xl px-4 py-3 cursor-pointer transition-all ${
+        isOffline
+          ? 'bg-slate-800/50 opacity-60 hover:opacity-80'
+          : 'bg-slate-800 hover:ring-1 hover:ring-slate-600'
+      }`}
     >
       {/* Status dot */}
       <div
         className={`h-2.5 w-2.5 shrink-0 rounded-full ${
-          isAvailable ? 'bg-green-400' : 'bg-slate-500'
+          isAvailable ? 'bg-green-400' : isOffline ? 'bg-slate-600' : 'bg-yellow-500'
         }`}
       />
 
       {/* User info */}
       <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium text-white truncate">{user.name}</div>
-        <div className="text-xs text-slate-400">{langName}</div>
+        <div className={`text-sm font-medium truncate ${isOffline ? 'text-slate-400' : 'text-white'}`}>
+          {user.name}
+        </div>
+        <div className="text-xs text-slate-400">
+          {isOffline ? (
+            <span className="text-slate-500">seen {formatLastSeen(user.lastSeen)}</span>
+          ) : (
+            langName
+          )}
+        </div>
       </div>
 
       {/* Chat indicator + unread badge */}
@@ -42,6 +64,8 @@ export function LobbyUserCard({ user, onCall, onClick, disabled, unreadCount }: 
           </span>
         )}
       </div>
+
+      {/* Action */}
       {isAvailable ? (
         <button
           onClick={(e) => { e.stopPropagation(); onCall(user.id); }}
@@ -50,6 +74,8 @@ export function LobbyUserCard({ user, onCall, onClick, disabled, unreadCount }: 
         >
           Call
         </button>
+      ) : isOffline ? (
+        <span className="shrink-0 text-[10px] text-slate-600">Offline</span>
       ) : (
         <span className="shrink-0 text-xs text-slate-500">In call</span>
       )}

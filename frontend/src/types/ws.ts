@@ -33,7 +33,8 @@ export interface LobbyUser {
   id: string;
   name: string;
   lang: string;
-  status: 'available' | 'in_call';
+  status: 'available' | 'in_call' | 'offline';
+  lastSeen?: number; // unix timestamp
 }
 
 export interface InboundMessage {

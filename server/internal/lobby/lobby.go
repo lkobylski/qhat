@@ -11,6 +11,7 @@ type UserStatus string
 const (
 	StatusAvailable UserStatus = "available"
 	StatusInCall    UserStatus = "in_call"
+	StatusOffline   UserStatus = "offline"
 )
 
 // LobbyUser represents a user present in the public lobby.
@@ -20,8 +21,9 @@ type LobbyUser struct {
 	Lang         string
 	Status       UserStatus
 	JoinedAt     time.Time
-	Disconnected bool
+	Disconnected bool      // true during grace period (may reconnect)
 	DisconnectAt time.Time
+	LastSeenAt   time.Time // set when user goes offline
 }
 
 // Manager tracks all users currently in the public lobby.
@@ -91,6 +93,32 @@ func (m *Manager) Reconnect(clientID, name string) bool {
 	return found
 }
 
+// MarkOffline transitions a user from disconnected to offline (visible but grayed out).
+func (m *Manager) MarkOffline(clientID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if u, ok := m.users[clientID]; ok {
+		u.Status = StatusOffline
+		u.Disconnected = false
+		u.LastSeenAt = time.Now()
+	}
+}
+
+// CleanupOffline removes offline users older than the given duration.
+func (m *Manager) CleanupOffline(maxAge time.Duration) []string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var removed []string
+	now := time.Now()
+	for id, u := range m.users {
+		if u.Status == StatusOffline && now.Sub(u.LastSeenAt) > maxAge {
+			delete(m.users, id)
+			removed = append(removed, id)
+		}
+	}
+	return removed
+}
+
 // CleanupDisconnected removes users disconnected longer than grace period.
 func (m *Manager) CleanupDisconnected(grace time.Duration) []string {
 	m.mu.Lock()
@@ -106,13 +134,13 @@ func (m *Manager) CleanupDisconnected(grace time.Duration) []string {
 	return removed
 }
 
-// List returns a snapshot of all connected (non-disconnected) lobby users.
+// List returns a snapshot of all lobby users (connected + offline, not disconnected grace period).
 func (m *Manager) List() []LobbyUser {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	result := make([]LobbyUser, 0, len(m.users))
 	for _, u := range m.users {
-		if !u.Disconnected {
+		if !u.Disconnected { // skip grace-period users, include offline
 			result = append(result, *u)
 		}
 	}

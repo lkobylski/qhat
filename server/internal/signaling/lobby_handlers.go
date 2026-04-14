@@ -376,6 +376,8 @@ func (h *Hub) removeLobbyClient(clientID string) {
 	}, "")
 }
 
+const offlineMaxAge = 30 * time.Minute
+
 func (h *Hub) handleLobbyDisconnect(clientID string) {
 	h.mu.RLock()
 	inLobby := h.lobbyClients[clientID]
@@ -389,13 +391,12 @@ func (h *Hub) handleLobbyDisconnect(clientID string) {
 	h.lobby.MarkDisconnected(clientID)
 	log.Printf("[lobby] %s disconnected (grace %s)", clientID, lobbyGrace)
 
-	// After grace period, if still disconnected → broadcast leave + cleanup
+	// After grace period, if still disconnected → transition to offline (not remove)
 	go func() {
 		time.Sleep(lobbyGrace)
 
 		user := h.lobby.Get(clientID)
 		if user == nil {
-			// Already removed (reconnected and replaced)
 			return
 		}
 		if !user.Disconnected {
@@ -403,19 +404,42 @@ func (h *Hub) handleLobbyDisconnect(clientID string) {
 			return
 		}
 
-		// Still disconnected after grace — actually remove
-		h.lobby.Remove(clientID)
+		// Transition to offline — user stays in list as "seen X ago"
+		h.lobby.MarkOffline(clientID)
 		h.mu.Lock()
-		delete(h.lobbyClients, clientID)
+		delete(h.lobbyClients, clientID) // no longer receives broadcasts via WS
 		h.mu.Unlock()
 
-		log.Printf("[lobby] %s removed after grace period", clientID)
+		log.Printf("[lobby] %s went offline", clientID)
 
-		dto := toLobbyDTO(user)
-		h.broadcastToLobby(&ws.OutboundMessage{
-			Type: ws.TypeLobbyUserLeft,
-			User: &dto,
-		}, "")
+		// Broadcast status update so others see "offline / seen X ago"
+		updatedUser := h.lobby.Get(clientID)
+		if updatedUser != nil {
+			dto := toLobbyDTO(updatedUser)
+			h.broadcastToLobby(&ws.OutboundMessage{
+				Type: ws.TypeLobbyUpdate,
+				User: &dto,
+			}, "")
+		}
+	}()
+}
+
+// StartOfflineCleanup runs periodic cleanup of old offline users.
+func (h *Hub) StartOfflineCleanup(interval time.Duration) {
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for range ticker.C {
+			removed := h.lobby.CleanupOffline(offlineMaxAge)
+			for _, id := range removed {
+				log.Printf("[lobby] offline user %s expired", id)
+				// Broadcast removal
+				h.broadcastToLobby(&ws.OutboundMessage{
+					Type: ws.TypeLobbyUserLeft,
+					User: &ws.LobbyUserDTO{ID: id},
+				}, "")
+			}
+		}
 	}()
 }
 
@@ -433,10 +457,14 @@ func (h *Hub) broadcastToLobby(msg *ws.OutboundMessage, excludeID string) {
 }
 
 func toLobbyDTO(u *lobby.LobbyUser) ws.LobbyUserDTO {
-	return ws.LobbyUserDTO{
+	dto := ws.LobbyUserDTO{
 		ID:     u.ClientID,
 		Name:   u.Name,
 		Lang:   u.Lang,
 		Status: string(u.Status),
 	}
+	if u.Status == lobby.StatusOffline && !u.LastSeenAt.IsZero() {
+		dto.LastSeen = u.LastSeenAt.Unix()
+	}
+	return dto
 }
