@@ -19,11 +19,36 @@ export interface MissedCall {
 
 let missedId = 0;
 
+const MISSED_CALLS_KEY = 'qhat_missed_calls';
+const MISSED_CALLS_MAX = 10;
+
+function loadMissedCalls(): MissedCall[] {
+  try {
+    const raw = localStorage.getItem(MISSED_CALLS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as MissedCall[];
+    if (!Array.isArray(parsed)) return [];
+    // Reseed id counter so newly pushed entries stay unique.
+    for (const m of parsed) if (typeof m.id === 'number' && m.id > missedId) missedId = m.id;
+    return parsed.slice(0, MISSED_CALLS_MAX);
+  } catch {
+    return [];
+  }
+}
+
+function saveMissedCalls(calls: MissedCall[]): void {
+  try {
+    localStorage.setItem(MISSED_CALLS_KEY, JSON.stringify(calls));
+  } catch {
+    // ignore quota / disabled storage
+  }
+}
+
 export function useCall() {
   const [callState, setCallState] = useState<CallState>('idle');
   const [incomingCaller, setIncomingCaller] = useState<CallerInfo | null>(null);
   const [targetRoomCode, setTargetRoomCode] = useState<string | null>(null);
-  const [missedCalls, setMissedCalls] = useState<MissedCall[]>([]);
+  const [missedCalls, setMissedCalls] = useState<MissedCall[]>(loadMissedCalls);
   const incomingCallerRef = useRef<CallerInfo | null>(null);
   const autoDeclineTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -35,6 +60,7 @@ export function useCall() {
   const acceptCall = useCallback(() => {
     if (!incomingCaller) return;
     wsClient.send({ type: 'call_accept', callerId: incomingCaller.id });
+    incomingCallerRef.current = null;
     if (autoDeclineTimer.current) {
       clearTimeout(autoDeclineTimer.current);
       autoDeclineTimer.current = null;
@@ -46,6 +72,7 @@ export function useCall() {
     wsClient.send({ type: 'call_decline', callerId: incomingCaller.id });
     setCallState('idle');
     setIncomingCaller(null);
+    incomingCallerRef.current = null;
     if (autoDeclineTimer.current) {
       clearTimeout(autoDeclineTimer.current);
       autoDeclineTimer.current = null;
@@ -77,14 +104,19 @@ export function useCall() {
       // Auto-decline after 30s → becomes missed call
       autoDeclineTimer.current = setTimeout(() => {
         wsClient.send({ type: 'call_decline', callerId: msg.callerId });
-        setMissedCalls((prev) => [{
-          id: ++missedId,
-          name: msg.callerName || 'Unknown',
-          lang: msg.callerLang || '',
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        }, ...prev].slice(0, 10));
+        setMissedCalls((prev) => {
+          const next = [{
+            id: ++missedId,
+            name: msg.callerName || 'Unknown',
+            lang: msg.callerLang || '',
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          }, ...prev].slice(0, MISSED_CALLS_MAX);
+          saveMissedCalls(next);
+          return next;
+        });
         setCallState('idle');
         setIncomingCaller(null);
+        incomingCallerRef.current = null;
       }, 30000);
     });
 
@@ -93,17 +125,26 @@ export function useCall() {
     });
 
     const unsubCancelled = wsClient.on('call_cancelled', (msg: OutboundMessage) => {
-      // Caller cancelled → missed call
-      if (incomingCallerRef.current) {
-        setMissedCalls((prev) => [{
-          id: ++missedId,
-          name: incomingCallerRef.current?.name || msg.callerName || 'Unknown',
-          lang: incomingCallerRef.current?.lang || msg.callerLang || '',
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        }, ...prev].slice(0, 10));
+      // Caller cancelled (or disconnected) → missed call. Prefer the live
+      // ref, but fall back to server-provided caller info so the entry is
+      // still recorded if the ref was cleared (e.g. after a reload/reconnect).
+      const name = incomingCallerRef.current?.name || msg.callerName;
+      const lang = incomingCallerRef.current?.lang || msg.callerLang || '';
+      if (name) {
+        setMissedCalls((prev) => {
+          const next = [{
+            id: ++missedId,
+            name,
+            lang,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          }, ...prev].slice(0, MISSED_CALLS_MAX);
+          saveMissedCalls(next);
+          return next;
+        });
       }
       setCallState('idle');
       setIncomingCaller(null);
+      incomingCallerRef.current = null;
       if (autoDeclineTimer.current) {
         clearTimeout(autoDeclineTimer.current);
         autoDeclineTimer.current = null;
@@ -126,7 +167,10 @@ export function useCall() {
     };
   }, []);
 
-  const clearMissedCalls = useCallback(() => setMissedCalls([]), []);
+  const clearMissedCalls = useCallback(() => {
+    setMissedCalls([]);
+    saveMissedCalls([]);
+  }, []);
 
   return {
     callState,

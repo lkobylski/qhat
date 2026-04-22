@@ -239,6 +239,14 @@ func (h *Hub) handleCallCancel(client *ws.Client) {
 }
 
 func (h *Hub) cancelPendingCall(callerID, targetID string) {
+	// Snapshot caller identity before any state changes so the target always
+	// receives who called them, even when the caller has already disconnected.
+	var callerName, callerLang string
+	if caller := h.lobby.Get(callerID); caller != nil {
+		callerName = caller.Name
+		callerLang = caller.Lang
+	}
+
 	h.mu.Lock()
 	delete(h.pendingCalls, callerID)
 	h.mu.Unlock()
@@ -251,12 +259,18 @@ func (h *Hub) cancelPendingCall(callerID, targetID string) {
 		h.broadcastToLobby(&ws.OutboundMessage{Type: ws.TypeLobbyUpdate, User: &dto}, "")
 	}
 
-	// Notify target
+	// Notify target with caller info so a missed-call entry can be recorded
+	// even if the caller has left the lobby.
 	h.mu.RLock()
 	targetClient := h.clients[targetID]
 	h.mu.RUnlock()
 	if targetClient != nil {
-		targetClient.Send(&ws.OutboundMessage{Type: ws.TypeCallCancelled})
+		targetClient.Send(&ws.OutboundMessage{
+			Type:       ws.TypeCallCancelled,
+			CallerID:   callerID,
+			CallerName: callerName,
+			CallerLang: callerLang,
+		})
 	}
 
 	log.Printf("[lobby] call cancelled: %s -> %s", callerID, targetID)
